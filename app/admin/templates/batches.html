@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block body %}
+<h1>批次</h1>
+<div class="sub">每次整理形成一个批次；已出表的批次其材料会标记为已用，不会重复计入</div>
+<div class="panel"><div class="hd">批次列表</div>
+<table><thead><tr>
+  <th>ID</th><th>期间</th><th class="num">笔数</th><th class="num">金额</th>
+  <th>状态</th><th>需求人</th><th>出账主体</th><th>产出</th><th></th>
+</tr></thead><tbody>
+{% for b in batches %}<tr>
+  <td class="dim">{{ b.id }}</td>
+  <td>{{ b.title or '—' }}</td>
+  <td class="num">{{ b.n }}</td>
+  <td class="num">{{ '%.2f'|format(b.total) }}</td>
+  <td>{{ batch_tag(b.status)|safe }}</td>
+  <td class="dim">{{ b.requester or '—' }}</td>
+  <td class="dim">{{ (b.company or '—')[:16] }}</td>
+  <td>{% if b.ledger_path %}<span class="tag ok">已出表</span>{% else %}<span class="tag mute">未出表</span>{% endif %}</td>
+  <td><a href="/admin/batches/{{ b.id }}">明细</a></td>
+</tr>{% endfor %}
+{% if not batches %}<tr><td colspan="9" class="empty">还没有批次</td></tr>{% endif %}
+</tbody></table></div>
+{% endblock %}

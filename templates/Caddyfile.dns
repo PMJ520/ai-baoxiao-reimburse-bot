@@ -1,0 +1,9 @@
+# 域名在公网但服务在内网：走 DNS-01 挑战，仍可拿到真证书
+# 需在 .env 配置 DNS 服务商凭据，并使用带对应插件的 Caddy 镜像
+${DOMAIN} {
+    reverse_proxy api:8000
+    encode gzip
+    tls {
+        dns ${DNS_PROVIDER} ${DNS_API_TOKEN}
+    }
+}

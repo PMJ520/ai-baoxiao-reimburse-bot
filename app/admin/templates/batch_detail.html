@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% block body %}
+<h1>{{ b.title or ('批次 #' ~ b.id) }}</h1>
+<div class="sub"><a href="/admin/batches">← 返回列表</a></div>
+{% if saved %}<div class="err" style="background:var(--ok-soft);color:var(--ok)">已保存</div>{% endif %}
+<div class="stats">
+  <div class="stat"><div class="n">{{ items|length }}</div><div class="k">条目</div></div>
+  <div class="stat"><div class="n money">{{ '%.2f'|format(total) }}</div><div class="k">实付合计</div></div>
+  <div class="stat"><div class="n money">{{ '%.2f'|format(inv_total) }}</div><div class="k">有发票部分</div></div>
+  <div class="stat"><div class="n money">{{ '%.2f'|format(total - inv_total) }}</div><div class="k">需替票</div></div>
+  <div class="stat"><div class="n">{{ batch_tag(b.status)|safe }}</div><div class="k">状态</div></div>
+</div>
+<div class="panel"><div class="hd">台账抬头</div>
+<form method="post" action="/admin/batches/{{ b.id }}/people" style="padding:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+  <div><label class="hint">需求人</label><br><input name="requester" value="{{ b.requester or '' }}" style="width:130px"></div>
+  <div><label class="hint">经办人</label><br><input name="handler" value="{{ b.handler or '' }}" style="width:130px"></div>
+  <div><label class="hint">出账主体</label><br><input name="company" value="{{ b.company or '' }}" style="width:260px"></div>
+  <button class="primary" type="submit">保存</button>
+</form></div>
+<div class="panel"><div class="hd">条目 <span class="muted">明细与类别可直接改</span></div>
+<form method="post" action="/admin/batches/{{ b.id }}/items">
+<table><thead><tr>
+  <th>序</th><th>消费时间</th><th class="num">实付</th><th class="num">发票额</th>
+  <th class="num">差额</th><th>凭证</th><th>费用具体明细</th><th>类别</th>
+</tr></thead><tbody>
+{% for it in items %}<tr>
+  <td class="dim">{{ it.seq }}</td>
+  <td>{{ it.occurred_at.strftime('%Y-%m-%d %H:%M') if it.occurred_at else '—' }}</td>
+  <td class="num">{{ '%.2f'|format(it.amount) if it.amount is not none else '—' }}</td>
+  <td class="num dim">{{ '%.2f'|format(it.invoice_amount) if it.invoice_amount is not none else '—' }}</td>
+  <td class="num">{% set d = (it.amount or 0) - (it.invoice_amount or 0) %}
+      {% if d > 0 %}<span style="color:var(--warn)">+{{ '%.2f'|format(d) }}</span>{% else %}—{% endif %}</td>
+  <td>{{ voucher_tag(it.voucher_type)|safe }}</td>
+  <td><input name="detail_{{ it.seq }}" value="{{ it.detail or '' }}" style="width:100%"></td>
+  <td><select name="category_{{ it.seq }}">
+      <option value="">—</option>
+      {% for c in categories %}<option value="{{c}}" {{ 'selected' if c==it.category }}>{{c}}</option>{% endfor %}
+      </select></td>
+</tr>{% endfor %}
+{% if not items %}<tr><td colspan="8" class="empty">该批次没有条目</td></tr>{% endif %}
+</tbody></table>
+{% if items %}<div style="padding:14px 16px;border-top:1px solid var(--line)">
+  <button class="primary" type="submit">保存条目</button>
+  <span class="hint" style="margin-left:12px">保存后可在飞书里回「确认」出表</span>
+</div>{% endif %}
+</form></div>
+{% endblock %}

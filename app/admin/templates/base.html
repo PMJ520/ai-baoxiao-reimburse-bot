@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}费用报销中枢{% endblock %}</title>
+<link rel="stylesheet" href="/admin/static/app.css">
+</head>
+<body class="app">
+<aside class="side">
+  <div class="brand">费用报销中枢<span>数据后台</span></div>
+  <nav>
+    <a href="/admin" class="{{ 'on' if tab=='home' }}">概览</a>
+    <a href="/admin/documents" class="{{ 'on' if tab=='docs' }}">文件</a>
+    <a href="/admin/batches" class="{{ 'on' if tab=='batches' }}">批次</a>
+    <div class="sep">配置</div>
+    <a href="/admin/templates" class="{{ 'on' if tab=='tpl' }}">专用模版</a>
+    <a href="/admin/settings" class="{{ 'on' if tab=='set' }}">系统设置</a>
+  </nav>
+  <div class="side-foot">
+    <span class="who">{{ me or 'admin' }}</span>
+    <a href="/admin/logout">退出</a>
+  </div>
+</aside>
+<main>{% block body %}{% endblock %}</main>
+</body>
+</html>

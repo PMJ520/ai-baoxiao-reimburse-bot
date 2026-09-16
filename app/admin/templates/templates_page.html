@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% block body %}
+<h1>专用模版</h1>
+<div class="sub">上传一份<strong>已填好数据</strong>的台账样例，系统推断映射并做独立校验；
+校验通过才可启用</div>
+{% if msg %}<div class="err" style="background:{{ 'var(--ok-soft)' if ok else 'var(--bad-soft)' }};
+  color:{{ 'var(--ok)' if ok else 'var(--bad)' }}">{{ msg }}</div>{% endif %}
+<div class="panel"><div class="hd">已注册模版</div>
+<table><thead><tr><th>ID</th><th>名称</th><th class="num">映射列数</th>
+  <th>校验</th><th>默认</th><th></th></tr></thead><tbody>
+{% for t in tpls %}<tr>
+  <td class="dim">{{ t.id }}</td><td>{{ t.name }}</td>
+  <td class="num">{{ t.columns }}</td>
+  <td>{% if t.usable %}<span class="tag ok">通过</span>
+      {% else %}<span class="tag bad">{{ t.diffs or '?' }} 处问题</span>{% endif %}</td>
+  <td>{% if t.is_default %}<span class="tag ok">默认</span>{% endif %}</td>
+  <td><a href="/admin/templates/{{ t.id }}">查看</a>
+      {% if t.usable and not t.is_default %}
+      · <a href="/admin/templates/{{ t.id }}/activate">设为默认</a>{% endif %}</td>
+</tr>{% endfor %}
+{% if not tpls %}<tr><td colspan="6" class="empty">还没有自定义模版，当前使用内置的备用金台账格式</td></tr>{% endif %}
+</tbody></table></div>
+<div class="panel"><div class="hd">注册新模版</div>
+<form method="post" enctype="multipart/form-data" style="padding:18px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+  <div><label class="hint">模版名称</label><br><input name="name" placeholder="如：XX公司报销单" style="width:220px" required></div>
+  <div><label class="hint">样例文件（.xlsx，需已填好数据）</label><br><input type="file" name="file" accept=".xlsx" required></div>
+  <button class="primary" type="submit">推断并校验</button>
+</form>
+<p class="hint" style="padding:0 18px 16px;margin:0">
+  推断只在注册时调用一次模型；之后出表纯代码套用，不再调用。</p>
+</div>
+{% endblock %}

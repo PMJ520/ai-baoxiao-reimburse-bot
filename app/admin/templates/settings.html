@@ -1,0 +1,237 @@
+{% extends "base.html" %}{% block body %}
+<h1>系统设置</h1>
+<div class="sub">改动即时生效并持久化；未修改内容时保存按钮不可点击</div>
+{% if msg %}<div class="err" style="background:{{ 'var(--ok-soft)' if ok else 'var(--bad-soft)' }};
+  color:{{ 'var(--ok)' if ok else 'var(--bad)' }}">{{ msg }}</div>{% endif %}
+
+<div class="panel">
+  <div class="hd">IM 通道
+    <span class="muted state {{ im.cls }}"><span class="dot"></span>
+      飞书：{{ im.label }}{% if im.why %}<span class="why"> · {{ im.why }}</span>{% endif %}
+    </span>
+  </div>
+  <form method="post" action="/admin/settings/feishu" data-dirty-guard>
+    <div class="form-rows">
+      <div class="two">
+        <div class="fr"><label>App ID</label>
+          <input name="app_id" value="{{ feishu_id or '' }}" placeholder="cli_xxxxxxxx"></div>
+        <div class="fr"><label>App Secret</label>
+          <input name="app_secret" type="password" placeholder="{{ feishu_secret_mask or '未配置' }}">
+          <div class="note">留空表示不修改</div></div>
+      </div>
+      <div class="note">
+        需在飞书开放平台创建企业自建应用，事件订阅选<strong>长连接模式</strong>，
+        并订阅「接收消息 v2.0」；权限需包含 im:message、im:resource、file:upload。
+      </div>
+    </div>
+    <div class="form-actions"><button class="primary" type="submit">保存并重连</button></div>
+  </form>
+</div>
+
+<div class="panel">
+  <div class="hd">对话模型
+    <span class="muted state {{ llm_state.cls }}"><span class="dot"></span>
+      {{ llm_state.label }}{% if llm_state.why %}<span class="why"> · {{ llm_state.why }}</span>{% endif %}
+    </span>
+  </div>
+  <form method="post" action="/admin/settings/llm" data-dirty-guard>
+    <div class="form-rows">
+      <div class="two">
+        <div class="fr"><label>厂商</label>
+          <select name="provider">
+            {% for v,t in providers %}
+            <option value="{{v}}" {{ 'selected' if v==llm.provider }}>{{t}}</option>{% endfor %}
+          </select>
+          <div class="note">通义、DeepSeek、智谱等兼容 OpenAI 协议的都选这个</div></div>
+        <div class="fr" id="fr-model"><label>模型名</label>
+          <input name="model" value="{{ llm.model or '' }}" placeholder="留空用默认"></div>
+      </div>
+      <div class="fr"><label id="lb-key">API Key</label>
+        <input name="api_key" type="password" placeholder="{{ llm_key_mask or '未配置' }}">
+        <div class="note" id="nt-key">留空表示不修改</div></div>
+      <div class="fr"><label id="lb-url">Base URL</label>
+        <input name="base_url" value="{{ llm.base_url or '' }}"
+               placeholder="OpenAI 兼容端点，Claude 可留空"></div>
+    </div>
+    <div class="form-actions">
+      <button class="primary" type="submit">保存</button>
+      {% if llm_state.cls != 'bad' %}
+      <a href="/admin/settings/llm/test" style="margin-left:12px">测试连通性</a>{% endif %}
+    </div>
+  </form>
+
+  <div id="cli-setup" hidden>
+    <div class="hr"></div>
+    <div class="sub">在装有 CLI 的机器上跑一条命令</div>
+    <div class="note">
+      本机 CLI 方式复用那台机器上已登录的 CLI，不需要 API Key。它会主动来取任务，
+      所以不用开端口、也不必是 Docker 宿主机——任何一台能访问本后台的机器都行。
+      <span class="warn-t">比直连 API 慢数秒，且串行执行，适合自用不适合跑量。</span>
+    </div>
+
+    <div class="worker-st {{ 'ok' if worker.online else 'bad' }}">
+      {% if worker.online %}
+        worker 在线 ·
+        {{ worker.env.os }} {{ worker.env.arch }} · {{ worker.env.cli }} {{ worker.env.ver }}
+      {% else %}
+        worker 未连接{% if host_hint.why %} · 宿主机探测：{{ host_hint.why }}{% endif %}
+      {% endif %}
+    </div>
+
+    <div class="tabs" id="os-tabs">
+      <button type="button" data-os="macos">macOS</button>
+      <button type="button" data-os="linux">Linux</button>
+      <button type="button" data-os="windows">Windows</button>
+      <button type="button" data-os="manual">通用 / 手动</button>
+    </div>
+
+    <div class="cmd" data-os="macos" hidden>
+      <pre class="mono"><code id="cmd-macos"></code></pre>
+      <div class="note">需要 curl（系统自带）。装完会用 launchd 注册登录自启。</div>
+    </div>
+    <div class="cmd" data-os="linux" hidden>
+      <pre class="mono"><code id="cmd-linux"></code></pre>
+      <div class="note">需要 curl。装完会用 systemd --user 注册开机自启。</div>
+    </div>
+    <div class="cmd" data-os="windows" hidden>
+      <pre class="mono"><code id="cmd-windows"></code></pre>
+      <div class="note">PowerShell 5.1 起，Windows 10/11 自带，不需要装 Python。
+        装完会注册为登录时启动的计划任务。</div>
+    </div>
+    <div class="cmd" data-os="manual" hidden>
+      <div class="note">
+        没有上面三种环境（群晖、OpenWrt、Alpine 等），或想自己实现 worker：
+        协议很简单，<b>全程不涉及 JSON</b>，任何语言、哪怕 busybox 的 sh 都能写。
+      </div>
+      <pre class="mono"><code id="cmd-manual"></code></pre>
+      <div class="note">
+        协议三个接口（鉴权统一用 <code class="mono">Authorization: Bearer &lt;桥接令牌&gt;</code>）：<br>
+        <code class="mono">GET /bridge/jobs/next?wait=30</code> —— 长轮询要活。
+        200 时 body 就是提示词全文，任务号在响应头 <code class="mono">X-Job-Id</code>；204 表示这段时间没活。<br>
+        <code class="mono">POST /bridge/jobs/&lt;id&gt;/result</code> —— body 放 CLI 的原样输出。<br>
+        <code class="mono">POST /bridge/jobs/&lt;id&gt;/result?error=1</code> —— body 放错误信息。<br>
+        详见仓库 <code class="mono">bridge/README.md</code>。
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<div class="panel">
+  <div class="hd">修改登录密码</div>
+  <form method="post" action="/admin/settings/password" data-dirty-guard>
+    <div class="form-rows">
+      <div class="fr"><label>当前密码</label>
+        <input name="old" type="password" autocomplete="current-password" required></div>
+      <div class="two">
+        <div class="fr"><label>新密码</label>
+          <input name="new1" type="password" autocomplete="new-password" required minlength="8">
+          <div class="note">至少 8 位</div></div>
+        <div class="fr"><label>确认新密码</label>
+          <input name="new2" type="password" autocomplete="new-password" required></div>
+      </div>
+      <div class="note">改完会退出登录，需用新密码重新登录。</div>
+    </div>
+    <div class="form-actions"><button class="primary" type="submit">修改密码</button></div>
+  </form>
+</div>
+<script src="/admin/static/settings.js"></script>
+<script>
+// 选本机 CLI 时这张表的含义整个变了：不再填 API Key 和 Base URL，
+// 而是给 worker 一个鉴权令牌。标签不跟着改，使用者一定会填错。
+(function () {
+  var sel = document.querySelector('select[name=provider]');
+  if (!sel) return;
+  var keyInput = document.querySelector('input[name=api_key]');
+  var urlRow = document.getElementById('lb-url').parentNode;
+
+  function isCli() { return sel.value === 'cli'; }
+
+  function syncFields() {
+    var cli = isCli();
+    document.getElementById('lb-key').textContent = cli ? '桥接令牌' : 'API Key';
+    document.getElementById('nt-key').innerHTML = cli
+      ? 'worker 用它鉴权，随便一串随机字符即可 · <a href="#" id="gen-token">生成一个</a>'
+      : '留空表示不修改';
+    urlRow.hidden = cli;              // CLI 方式不需要 Base URL
+    // 模型由那台机器上的 CLI 自己决定，这里填了也不起作用，留着会误导
+    document.getElementById('fr-model').hidden = cli;
+    document.getElementById('cli-setup').hidden = !cli;
+    if (cli) { bindGen(); render(); }
+  }
+
+  function bindGen() {
+    var a = document.getElementById('gen-token');
+    if (!a) return;
+    a.onclick = function (e) {
+      e.preventDefault();
+      var b = new Uint8Array(16);
+      crypto.getRandomValues(b);
+      keyInput.value = Array.from(b, function (x) {
+        return ('0' + x.toString(16)).slice(-2);
+      }).join('');
+      keyInput.type = 'text';         // 刚生成的要让人看得见才能复制
+      render();
+      keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+  }
+
+  // 默认页签：容器已经从内核标识猜了一轮，Mac 和 Windows 分不开时才看 UA。
+  // 两边打架以容器为准——它至少确定自己跑在谁的 Docker 里。
+  function guessOS() {
+    var fromHost = {{ host_hint.guess | tojson }};
+    var ua = navigator.userAgent;
+    var fromUA = /Windows/i.test(ua) ? 'windows'
+               : /Mac OS X|Macintosh/i.test(ua) ? 'macos'
+               : /Linux|X11/i.test(ua) ? 'linux' : '';
+    if (fromHost && fromHost !== 'desktop') return fromHost;
+    if (fromHost === 'desktop') return (fromUA === 'windows') ? 'windows' : 'macos';
+    return fromUA || 'macos';
+  }
+
+  var current = guessOS();
+
+  function render() {
+    var origin = location.origin;
+    // 输入框留空表示"不修改"，此时命令里要用已保存的那个，否则使用者
+    // 保存完一刷新就拿不到令牌了，命令等于废的
+    var token = keyInput.value || {{ llm_token | tojson }} || '<先在上面生成桥接令牌>';
+    var repo = {{ repo | tojson }};
+    var raw = 'https://raw.githubusercontent.com/' + repo + '/main/bridge/';
+
+    document.getElementById('cmd-macos').textContent =
+      'curl -fsSL ' + raw + 'setup.sh | bash -s -- \\\n' +
+      '  --url ' + origin + ' --token ' + token;
+    document.getElementById('cmd-linux').textContent =
+      'curl -fsSL ' + raw + 'setup.sh | bash -s -- \\\n' +
+      '  --url ' + origin + ' --token ' + token;
+    document.getElementById('cmd-windows').textContent =
+      'irm ' + raw + 'setup.ps1 -OutFile setup.ps1\n' +
+      '.\\setup.ps1 -Url ' + origin + ' -Token ' + token;
+    document.getElementById('cmd-manual').textContent =
+      '# 任意能访问本后台、装了 CLI 的机器上：\n' +
+      'curl -fsSL ' + raw + 'worker.sh -o worker.sh\n' +
+      'sh worker.sh --url ' + origin + ' --token ' + token + ' --cli claude';
+
+    var tabs = document.querySelectorAll('#os-tabs button');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('on', tabs[i].dataset.os === current);
+    }
+    var panes = document.querySelectorAll('#cli-setup .cmd');
+    for (var k = 0; k < panes.length; k++) {
+      panes[k].hidden = panes[k].dataset.os !== current;
+    }
+  }
+
+  document.getElementById('os-tabs').addEventListener('click', function (e) {
+    if (!e.target.dataset.os) return;
+    current = e.target.dataset.os;
+    render();
+  });
+  keyInput.addEventListener('input', render);
+  sel.addEventListener('change', syncFields);
+  syncFields();
+})();
+</script>
+{% endblock %}

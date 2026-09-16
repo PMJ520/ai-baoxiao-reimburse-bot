@@ -1,0 +1,12 @@
+.venv/
+data/
+.env
+creds.json
+backup-*.tar.gz
+backup-*.zip
+docker-compose.yml
+Caddyfile
+**/__pycache__/
+*.pyc
+**/.cache/
+.DS_Store

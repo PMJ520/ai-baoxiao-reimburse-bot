@@ -1,0 +1,47 @@
+# 反代模式：有域名，由 Caddy 自动申请并续期证书。
+# 由安装脚本生成，勿手改；需调整请改配置后重新运行安装命令。
+services:
+  api:
+    image: ${IMAGE}
+    container_name: expense-hub-api
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      TZ: ${TZ}
+      API_TOKEN: ${API_TOKEN}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      FEISHU_APP_ID: ${FEISHU_APP_ID}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET}
+    volumes:
+      - ${DATA_DIR}:/data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: expense-hub-caddy
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

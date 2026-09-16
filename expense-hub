@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# 费用报销中枢 · 管理脚本
+#   ./expense-hub start|stop|restart|status|logs|info|update|backup|uninstall
+set -euo pipefail
+cd "$(dirname "$0")"
+[ -f .env ] || { echo "找不到 .env，请先运行 install.sh"; exit 1; }
+set -a; . ./.env; set +a
+
+URL_BASE() {
+    if [ -f Caddyfile ]; then
+        printf 'https://%s' "$(head -1 Caddyfile | awk '{print $1}' | sed 's|https\?://||')"
+    else
+        printf 'http://localhost:%s' "${HOST_PORT:-8000}"
+    fi
+}
+
+banner() {
+    local url; url="$(URL_BASE)"
+    echo ""
+    echo "────────────────────────────────────────────"
+    echo "  后台地址   ${url}/admin"
+    echo "  用户名     ${ADMIN_USER:-admin}"
+    echo "  密码       ${ADMIN_PASSWORD:-未设置}"
+    echo "────────────────────────────────────────────"
+    echo "  凭据同时保存在 $(pwd)/.env"
+    echo ""
+}
+
+wait_healthy() {
+    local url="http://127.0.0.1:${HOST_PORT:-8000}/health"
+    [ -f Caddyfile ] && url="http://127.0.0.1/health"
+    for _ in $(seq 1 40); do
+        curl -fsS "$url" >/dev/null 2>&1 && return 0
+        sleep 3
+    done
+    return 1
+}
+
+case "${1:-}" in
+    start)
+        docker compose up -d
+        if wait_healthy; then
+            echo "✅ 服务已启动"
+            # 凭据打印在终端，不写进容器日志——避免被日志收集系统采走
+            [ "${PRINT_CREDENTIALS_ON_START:-true}" = "true" ] && banner
+        else
+            echo "⚠️  启动超时，用 ./expense-hub logs 查看原因"; exit 1
+        fi ;;
+    stop)    docker compose down; echo "已停止" ;;
+    restart) docker compose restart; wait_healthy && { echo "✅ 已重启"; banner; } ;;
+    status)  docker compose ps ;;
+    logs)    shift; docker compose logs -f --tail=200 "$@" ;;
+    info)    banner ;;
+    update)
+        docker compose pull && docker compose up -d
+        wait_healthy && echo "✅ 已更新到最新版本" ;;
+    backup)
+        ts="$(date +%Y%m%d-%H%M%S)"; out="backup-${ts}.tar.gz"
+        # SQLite 是单文件，连同原件目录一起打包即可完整还原
+        tar -czf "$out" -C "${DATA_DIR:-./data}" . 
+        echo "✅ 已备份到 $(pwd)/$out（$(du -h "$out" | cut -f1)）" ;;
+    uninstall)
+        read -r -p "将停止并删除容器（数据保留在 ${DATA_DIR}）。继续？[y/N] " a
+        [ "$a" = y ] || exit 0
+        docker compose down
+        echo "已卸载。数据仍在 ${DATA_DIR}，如需彻底清除请手动删除。" ;;
+    *)
+        echo "用法: ./expense-hub {start|stop|restart|status|logs|info|update|backup|uninstall}" ;;
+esac

@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block body %}
+<h1>订正识别结果</h1>
+<div class="sub"><a href="/admin/documents">← 返回列表</a></div>
+{% if saved %}<div class="err" style="background:var(--ok-soft);color:var(--ok)">已保存</div>{% endif %}
+<div class="panel"><div class="hd">{{ d.filename }}</div>
+<form method="post" style="padding:18px">
+  <div class="kv" style="margin-bottom:18px">
+    <dt>文件哈希</dt><dd class="mono">{{ d.sha256[:24] }}…</dd>
+    <dt>来源</dt><dd>{{ d.source }}{% if d.uploader %} · {{ d.uploader[:20] }}{% endif %}</dd>
+    <dt>入库时间</dt><dd>{{ d.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+    <dt>当前状态</dt><dd>{{ status_tag(d.status)|safe }}</dd>
+  </div>
+  <label class="hint">消费时间（消费实际发生的时间，决定归入哪个报销周期）</label>
+  <input name="occurred_at" style="width:220px"
+         value="{{ d.occurred_at.strftime('%Y-%m-%d %H:%M') if d.occurred_at else '' }}"
+         placeholder="2026-08-04 12:30">
+  <label class="hint" style="display:block;margin-top:12px">实付金额</label>
+  <input name="amount" style="width:140px"
+         value="{{ '%.2f'|format(d.amount) if d.amount is not none else '' }}">
+  <label class="hint" style="display:block;margin-top:12px">商户</label>
+  <input name="merchant" style="width:340px" value="{{ d.merchant or '' }}">
+  <label class="hint" style="display:block;margin-top:12px">类型</label>
+  <select name="kind">{% for k,v in kinds %}
+    <option value="{{k}}" {{ 'selected' if k==d.kind }}>{{v}}</option>{% endfor %}</select>
+  <div style="margin-top:20px"><button class="primary" type="submit">保存</button></div>
+</form></div>
+{% if d.parsed %}<div class="panel"><div class="hd">原始识别结果</div>
+<pre style="padding:16px;margin:0;font-size:12px;overflow:auto;color:var(--ink-2)">{{ parsed_json }}</pre>
+</div>{% endif %}
+{% endblock %}
