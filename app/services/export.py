@@ -284,6 +284,11 @@ def _datasheet_rows(rows):
             "voucher": ("替票" if inv is None
                         else ("发票+替票" if diff > 0 else "发票")),
             "shot": r.get("shot"),
+            # 备注与内置台账同一套算法：有发票但不足额时自动写明差额需替票。
+            # 两层必须算出同样的文字，否则换个模版备注就变了
+            "note": (r.get("note")
+                     or (L.DEFAULTS["替票备注模板"].format(diff=diff)
+                         if inv is not None and diff > 0 else None)),
         })
     # 契约自检：漏字段会导致专用模版渲染出空列，早发现早排查
     missing = set(SOURCE_FIELDS) - set(out[0]) - {"requester", "handler",

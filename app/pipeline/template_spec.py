@@ -25,6 +25,7 @@ SOURCE_FIELDS = {
     "handler": "经办人",
     "company": "报销出账主体",
     "apply_date": "发起报销日期",
+    "note": "备注（差额需替票时自动生成，否则为空）",
 }
 
 VERSION = 1
@@ -96,9 +97,9 @@ def validate(spec: TemplateSpec):
             errs.append(f"列 {c.letter} 重复定义")
         seen.add(c.letter)
         ways = sum(x is not None for x in (c.source, c.const, c.template))
-        if ways == 0:
-            errs.append(f"列 {c.letter} 没有取数方式")
-        elif ways > 1:
+        # 三者皆无是合法的：台账里常有我们没有对应数据的格子（打款时间、
+        # 备用金转入等），保留列、内容留空，比整列不输出更贴近原表
+        if ways > 1:
             errs.append(f"列 {c.letter} 同时指定了多种取数方式")
         if c.source and c.source not in SOURCE_FIELDS:
             errs.append(f"列 {c.letter} 的字段 {c.source!r} 不在通用数据表里")

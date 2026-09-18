@@ -77,9 +77,18 @@ SYSTEM = """你在分析一份已填好数据的报销台账 Excel 模版，要�
 1. 每列三选一：source（取通用数据表字段）、const（各行都一样的固定值）、
    template（按模板生成，可带 when 条件）。
 2. when 可选：diff_positive（实付高于发票额时）、no_invoice（无发票时）、always。
-3. 整列取值都相同的，是 const，不是 source。
-4. **不确定的列宁可省略，也不要猜**——漏掉会被验证发现，猜错更难排查。
-5. 只输出 JSON。
+3. 整列取值相同**且该项本来就不随行变化**的才用 const（如 数量=1、规格=次、
+   需求部门）。像费用类别、凭证类型这种逐行可能不同的，即使样例里碰巧
+   整列一样，也要用 source——写成 const 会让它永远输出这一个值。
+4. **每一列都要出现在 columns 里，不许省略。** 实在对应不上任何字段的，
+   给 "source": null 表示这列留空。省略会让生成的表少一列，
+   而留空只是那格空着，后果完全不同。
+5. **有对应字段就用 source，不要用 template 复刻它的逻辑**。比如「备注」
+   已有 note 字段（差额需替票时自动生成），直接 source: note 即可；
+   自己写模板加条件，条件很容易偏——样例里看不到的情形就会出错。
+   template 只留给确实没有对应字段的列。
+6. 不确定就留空（source: null），不要猜。
+7. 只输出 JSON。
 """
 
 
@@ -182,9 +191,21 @@ def replay(path, spec, tolerance=0.01):
     for col in spec.columns:
         info = facts["columns"].get(col.letter)
         checked += 1
+        # 三者皆无 = 这列有意留空（台账里有这个格子，但我们没有对应数据）
+        blank_by_design = not (col.source or col.const is not None or col.template)
         if info is None:
-            diffs.append({"col": col.letter, "header": col.header,
-                          "msg": "样例中该列整列为空，映射多余"})
+            # 留空列对着空列，本来就该如此，不是问题；只有"声称能产出数据"
+            # 的列对着空列才可疑——多半是列号错位了
+            if not blank_by_design:
+                diffs.append({"col": col.letter, "header": col.header,
+                              "msg": "该列声称有取数，但样例里整列为空，疑似列号错位"})
+            continue
+        if blank_by_design:
+            # 样例这列有数据却被留空：会丢字段，但未必错（可能确实没有对应
+            # 数据源）。提示即可，阻断的话使用者无处可改
+            warns.append({"col": col.letter, "header": col.header or
+                          facts["headers"].get(col.letter),
+                          "msg": "样例中该列有数据，但 spec 里留空，生成的表这列会是空的"})
             continue
 
         # 表头文字对不上 → 列映射错位的最强信号
@@ -200,6 +221,16 @@ def replay(path, spec, tolerance=0.01):
         if conflict:
             diffs.append({"col": col.letter, "header": col.header or hdr,
                           "msg": conflict})
+            continue
+
+        if col.template:
+            # 模板列没法独立验证：模板的产出依赖 diff 这类样例里看不到的
+            # 中间值。既然验不了，就明说这是盲区，别让人以为全都查过了
+            n_filled = sum(1 for v in info["values"] if v not in (None, ""))
+            warns.append({"col": col.letter, "header": col.header,
+                          "msg": f"这列由模板生成，无法独立核对；样例 "
+                                 f"{facts['data_rows']} 行里有 {n_filled} 行有值，"
+                                 f"请确认条件 {col.when or 'always'!r} 是否符合预期"})
             continue
 
         if col.const is not None:
