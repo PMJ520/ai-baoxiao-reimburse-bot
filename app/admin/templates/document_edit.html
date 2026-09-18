@@ -1,7 +1,6 @@
 {% extends "base.html" %}{% block body %}
 <h1>订正识别结果</h1>
 <div class="sub"><a href="/admin/documents">← 返回列表</a>
-  {% if preview %} · <a href="/admin/documents/{{ d.id }}/raw" target="_blank">新窗口打开原件</a>{% endif %}
   · <a href="/admin/documents/{{ d.id }}/raw?download=1">下载原件</a></div>
 {% if saved %}<div class="err" style="background:var(--ok-soft);color:var(--ok)">已保存</div>{% endif %}
 <div class="side-by-side">

@@ -43,7 +43,17 @@ def _tag(cls, text):
     return f'<span class="tag {cls}">{text}</span>'
 
 
+IMG_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+
+def preview_kind(name):
+    """能不能在页面里预览：image / pdf / 空（只能下载）。"""
+    ext = Path(name or "").suffix.lower()
+    return "image" if ext in IMG_EXT else ("pdf" if ext == ".pdf" else "")
+
+
 tpl.env.globals.update(
+    preview_kind=preview_kind,
     kind_name=lambda k: _KIND.get(k, k),
     status_tag=lambda s: _tag(_TAGCLS.get(s, "mute"), _STATUS.get(s, s)),
     batch_tag=lambda s: _tag(*_BATCH.get(s, ("mute", s))),
@@ -184,10 +194,7 @@ def document_edit(request: Request, doc_id: int, saved: int = 0):
         if not d:
             return RedirectResponse("/admin/documents", status_code=302)
         pj = json.dumps(d.parsed, ensure_ascii=False, indent=2) if d.parsed else ""
-        ext = Path(d.rel_path or "").suffix.lower()
-        preview = ("image" if ext in {".png", ".jpg", ".jpeg", ".gif",
-                                      ".webp", ".bmp"}
-                   else "pdf" if ext == ".pdf" else "")
+        preview = preview_kind(d.rel_path)
     return _page("document_edit.html", request, tab="docs", d=d, kinds=KINDS,
                  parsed_json=pj, saved=saved, preview=preview)
 

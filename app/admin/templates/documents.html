@@ -27,10 +27,54 @@
     <td>{{ status_tag(d.status)|safe }}
         {% if d.parse_error %}<div class="hint">{{ d.parse_error }}</div>{% endif %}</td>
     <td class="mono">{{ d.filename[:30] }}</td>
-    <td><a href="/admin/documents/{{ d.id }}/raw" target="_blank">查看</a>
+    <td>{% set pv = preview_kind(d.filename) %}
+        <a href="#" class="see" data-id="{{ d.id }}" data-pv="{{ pv }}"
+           data-name="{{ d.filename }}">查看</a>
         · <a href="/admin/documents/{{ d.id }}">编辑</a></td>
   </tr>{% endfor %}
   {% if not docs %}<tr><td colspan="8" class="empty">没有符合条件的文件</td></tr>{% endif %}
   </tbody></table>
 </div>
+<dialog id="d-see" class="editor wide">
+  <form method="dialog" class="x"><button aria-label="关闭">×</button></form>
+  <h2 id="see-name">原件</h2>
+  <div class="viewer" id="see-body"></div>
+  <div class="form-actions">
+    <a id="see-dl" href="#">下载原件</a>
+    <a id="see-edit" href="#" style="margin-left:14px">订正识别结果</a>
+  </div>
+</dialog>
+<script>
+// 看一眼原件不值得新开标签页——看完还得切回来关掉
+(function () {
+  var dlg = document.getElementById('d-see');
+  var body = document.getElementById('see-body');
+  document.querySelectorAll('a.see').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var url = '/admin/documents/' + a.dataset.id + '/raw';
+      document.getElementById('see-name').textContent = a.dataset.name;
+      document.getElementById('see-dl').href = url + '?download=1';
+      document.getElementById('see-edit').href = '/admin/documents/' + a.dataset.id;
+      if (a.dataset.pv === 'image') {
+        body.innerHTML = '<img alt="">';
+        body.firstChild.src = url;
+      } else if (a.dataset.pv === 'pdf') {
+        // object 而非 embed：没有 PDF 插件时能显示兜底内容，不会只剩空白
+        body.innerHTML = '<object type="application/pdf">' +
+          '<div class="empty" style="padding:28px">当前浏览器无法内嵌显示 PDF，' +
+          '请用上方「下载原件」查看</div></object>';
+        body.firstChild.data = url;
+      } else {
+        body.innerHTML = '<div class="empty" style="padding:28px">' +
+          '这类文件没法在页面里预览，请用下方「下载原件」</div>';
+      }
+      dlg.showModal();
+    });
+  });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  // 关闭时清空，免得后台继续加载大图或 PDF
+  dlg.addEventListener('close', function () { body.innerHTML = ''; });
+})();
+</script>
 {% endblock %}
