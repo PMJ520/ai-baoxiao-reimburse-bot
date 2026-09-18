@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
@@ -497,7 +497,12 @@ def settings_llm(request: Request, provider: str = Form("claude"),
 
 
 @router.get("/settings/llm/test")
-def settings_llm_test(request: Request):
+def settings_llm_test(request: Request, fmt: str = ""):
+    """测试连通性。
+
+    fmt=json 时返回结果而不跳转——设置页在弹窗里调它，跳转会把弹窗关掉，
+    用户得重新点开才能继续改。
+    """
     if not _guard(request):
         return auth.redirect_login()
     from ..services.llm import get_client
@@ -513,6 +518,8 @@ def settings_llm_test(request: Request):
         msg, ok, mark = f"连接失败：{detail}", 0, f"fail:{detail}"
     with SessionLocal() as s:
         ST.put(s, "llm_last_check", mark)
+    if fmt == "json":
+        return JSONResponse({"ok": bool(ok), "msg": msg})
     return RedirectResponse(f"/admin/settings?msg={msg}&ok={ok}", status_code=302)
 
 

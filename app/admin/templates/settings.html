@@ -28,7 +28,6 @@
 
   <div class="tile" data-dlg="d-pw">
     <div class="tile-t">登录密码</div>
-    <div class="state mute"><span class="dot"></span>{{ me or "admin" }}</div>
     <div class="tile-k">定期更换更安全</div>
     <div class="tile-w">改完需重新登录</div>
   </div>
@@ -66,7 +65,9 @@
     <li>消息接收模式 → 选「Stream 模式」</li>
     <li>开通权限：机器人发送消息、媒体文件上传、文件下载</li>
     <li>版本管理与发布 → 发布上线</li>
-    <li>把 Client ID 和 Client Secret 填到下面</li>
+    <li>把 Client ID 和 Client Secret 填到下面，保存</li>
+    <li>随便找个群添加这个机器人，然后 @它 发条消息</li>
+    <li>机器人会主动私信你，以后就在<strong>私信</strong>里用</li>
   </ol>
   <div class="note warn-t">群里发不了文件——群机器人只收 @ 它的消息，而发文件时无法 @。
     发票请在单聊里发，群里只能下指令。</div>
@@ -120,7 +121,9 @@
     <div class="form-actions">
       <button class="primary" type="submit">保存</button>
       {% if llm_state.cls != 'bad' %}
-      <a href="/admin/settings/llm/test" style="margin-left:12px">测试连通性</a>{% endif %}
+      <button type="button" class="ghost" id="btn-test" style="margin-left:12px">测试连通性</button>
+      {% endif %}
+      <span id="test-out" class="test-out"></span>
     </div>
   </form>
 
@@ -184,6 +187,30 @@
 </dialog>
 
 <script>
+// 测试连通性留在弹窗里出结果——原来是个链接，一点就整页跳转，
+// 弹窗被关掉，想接着改还得重新点开
+(function () {
+  var btn = document.getElementById('btn-test');
+  if (!btn) return;
+  var out = document.getElementById('test-out');
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    out.className = 'test-out';
+    out.textContent = '测试中…（本机 CLI 方式需要数秒）';
+    fetch('/admin/settings/llm/test?fmt=json', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        out.className = 'test-out ' + (d.ok ? 'ok' : 'bad');
+        out.textContent = d.msg;
+      })
+      .catch(function (e) {
+        out.className = 'test-out bad';
+        out.textContent = '请求失败：' + e;
+      })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+
 document.querySelectorAll('.tile').forEach(function (tile) {
   tile.addEventListener('click', function () {
     var d = document.getElementById(tile.dataset.dlg);

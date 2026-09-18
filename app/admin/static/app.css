@@ -224,3 +224,8 @@ dialog.editor .x button:hover { color: var(--ink); }
 /* 分步说明：照着做即可，不解释原理 */
 .steps { margin: 14px 0 16px; padding-left: 22px; }
 .steps li { margin: 5px 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.6; }
+
+/* 测试连通性的行内结果 */
+.test-out { margin-left: 12px; font-size: 13px; color: var(--ink-3); }
+.test-out.ok { color: var(--ok); }
+.test-out.bad { color: var(--bad); }
