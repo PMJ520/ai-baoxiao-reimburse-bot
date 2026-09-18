@@ -175,9 +175,61 @@ def _describe(doc, created):
 
 
 # ---------- 文本 ----------
+# 只认跟"要发文件"有关的词。「整理」「台账」这类是指令，群里本就该能用，
+# 拿它们当触发词会把指令一起截胡
+_WANTS_FILES = re.compile(r"(发票|截图|行程单|材料|单据)")
+
+DIRECT_INTRO = (
+    "这里是单聊入口，发票、支付截图、行程单都发这里。\n"
+    "攒够材料后说一句「整理 4-6 月报销」，我来核对出表。"
+)
+
+
+def _nudge_to_p2p(channel, session, conv, msg):
+    """群里发不了文件的平台（钉钉），把用户引到单聊。
+
+    主动给他发一条单聊消息——会话会出现在他消息列表顶部，省去"搜机器人"
+    这一步，那是整个流程最容易卡住的地方。
+
+    **只补一句提示，不拦截消息**：群里本来就该能下指令，把「整理 X 月报销」
+    截胡掉反而更糟。
+
+    只在第一次、或他明显在说文件的事时推。否则群里聊几句就收一堆私聊，
+    引导就成了骚扰。
+    """
+    if msg.is_p2p or not getattr(channel, "group_file_limited", False):
+        return False
+    ctx = dict(conv.context or {})
+    done = list(ctx.get("nudged") or [])
+    first = msg.user_id and msg.user_id not in done
+    if not first and not _WANTS_FILES.search(msg.text or ""):
+        return False
+
+    sent = False
+    fn = getattr(channel, "send_direct", None)
+    if callable(fn) and msg.user_id:
+        sent = fn(msg.user_id, DIRECT_INTRO)
+    if msg.user_id and first:
+        done.append(msg.user_id)
+        ctx["nudged"] = done[-200:]          # 群人数再多也不至于无限长
+        conv.context = ctx
+        session.commit()
+
+    tip = ("群里收不到文件——钉钉的群机器人只能收到 @ 它的消息，"
+           "而发文件时没法同时 @。发票、截图、行程单请在单聊里发；"
+           "群里可以下指令，比如「整理 4-6 月报销」。")
+    tip += ("\n我已经给你发了条单聊消息，点开就能用。"
+            if sent else "\n点我的头像 → 发消息，就能打开单聊。")
+    channel.send_text(msg.chat_id, tip)
+    return True
+
+
 def _on_text(channel, session, conv, msg):
     # 状态优先于关键词：流程中只有少数指令能打断，否则用户一句
     # "只整理3、6两笔"里的"整理"二字就会把当前批次冲掉
+    # 群里发不了文件的平台，顺带把人引到单聊。只补提示、不拦截——
+    # 群里该能用的指令仍旧照常执行
+    _nudge_to_p2p(channel, session, conv, msg)
     cmd = S.command_for(msg.text, conv.state)
     if conv.state in S.ORGANIZING:
         S.push_history(session, conv, "user", msg.text)

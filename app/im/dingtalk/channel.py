@@ -50,10 +50,14 @@ def guess_ext(blob: bytes, default=".png"):
 
 class DingTalkChannel:
     name = PLATFORM
+    # 群里收不到文件，上层据此把用户引导到单聊
+    group_file_limited = True
 
     def __init__(self, client_id, client_secret):
         self.client_id, self.client_secret = client_id, client_secret
         self.api = Client(client_id, client_secret)
+        # 发消息要 robotCode，而它只在回调里出现，收到第一条消息后才知道
+        self._robot_code = ""
         # chat_id → 发送目标。钉钉发消息要 robotCode 加收件人，而上层只给
         # chat_id，所以每收到一条消息就把路由记下来。
         self._route = {}
@@ -89,6 +93,22 @@ class DingTalkChannel:
             {"mediaId": media_id, "fileName": name,
              "fileType": name.rsplit(".", 1)[-1] if "." in name else "file"},
             user_id=t.get("user_id"), conversation_id=t.get("conversation_id"))
+
+    def send_direct(self, user_id, text):
+        """主动给某人发单聊。
+
+        群里发不了文件，所以用户在群里一露面就顺手把单聊会话推给他——
+        会话会出现在他消息列表顶部，省去搜索机器人这一步。
+        """
+        if not (user_id and self._robot_code):
+            return False
+        try:
+            self.api.send(self._robot_code, "sampleText", {"content": text},
+                          user_id=user_id)
+            return True
+        except Exception:
+            log.warning("主动私聊失败 user=%s", user_id, exc_info=True)
+            return False
 
     # 钉钉机器人没有表情回应能力，实现成空操作。上层已按"可能没有"来写。
     def react(self, message_id, emoji_type):
@@ -146,6 +166,8 @@ class DingTalkChannel:
             log.warning("未处理的钉钉消息类型 type=%s content=%s",
                         mtype, json.dumps(raw, ensure_ascii=False)[:400])
 
+        if robot:
+            self._robot_code = robot
         chat_id = raw.get("conversationId") or ""
         # 记住怎么回：群聊用 conversationId（实测它就是 openConversationId），
         # 单聊用发送者的 staffId

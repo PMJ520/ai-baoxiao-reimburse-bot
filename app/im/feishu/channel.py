@@ -26,6 +26,7 @@ PLATFORM = "feishu"
 
 class FeishuChannel:
     name = PLATFORM
+    group_file_limited = False
 
     def __init__(self, app_id: str, app_secret: str):
         if not (app_id and app_secret):

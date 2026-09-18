@@ -40,6 +40,10 @@ class Attachment:
 class IMChannel(Protocol):
     name: str
 
+    # 群里能不能收文件。钉钉不能——群机器人只收 @ 它的消息，而发文件时
+    # 无法同时 @。上层据此决定要不要把用户引导到单聊。
+    group_file_limited: bool
+
     def send_text(self, chat_id: str, text: str) -> None: ...
 
     def send_file(self, chat_id: str, path: str, filename: str | None = None) -> None: ...
@@ -48,6 +52,9 @@ class IMChannel(Protocol):
 
     # 表情回应用于表达"已看到/处理中/已完成"。平台不支持时实现成空操作即可，
     # 上层不必判断平台差异。
+    # 主动给某个人发单聊。平台不支持时返回 False，上层退回纯文案引导。
+    def send_direct(self, user_id: str, text: str) -> bool: ...
+
     def react(self, message_id: str, emoji_type: str) -> str | None: ...
 
     def unreact(self, message_id: str, reaction_id: str | None) -> None: ...
