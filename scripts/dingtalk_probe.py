@@ -126,6 +126,27 @@ def upload_media(creds, path):
         return json.loads(r.read().decode("utf-8", "replace"))
 
 
+def send_text(creds, robot_code, text, *, user_id=None, conversation_id=None):
+    """用 REST 接口发文字——正式通道走的就是这条路。
+
+    不用 SDK 的 reply_text：它依赖回调里的 sessionWebhook，而那东西会过期，
+    处理耗时长一点的回复就发不出去了。REST 靠 robotCode + 收件人，不过期。
+
+    群聊要传 openConversationId。钉钉文档里它和回调给的 conversationId
+    是不是同一个东西，说法不明——这里直接拿 conversationId 去试，
+    通了就说明是同一个。
+    """
+    param = json.dumps({"content": text}, ensure_ascii=False)
+    hdr = {"x-acs-dingtalk-access-token": creds.v1()}
+    if conversation_id:
+        return _post(f"{API}/v1.0/robot/groupMessages/send",
+                     {"robotCode": robot_code, "openConversationId": conversation_id,
+                      "msgKey": "sampleText", "msgParam": param}, hdr)
+    return _post(f"{API}/v1.0/robot/oToMessages/batchSend",
+                 {"robotCode": robot_code, "userIds": [user_id],
+                  "msgKey": "sampleText", "msgParam": param}, hdr)
+
+
 def send_file(creds, robot_code, *, media_id, filename, user_id=None,
               conversation_id=None):
     param = json.dumps({"mediaId": media_id, "fileName": filename,
@@ -201,6 +222,18 @@ def main():
             else:
                 print("\n没有 downloadCode —— 这条消息里没有可下载的附件")
 
+            # 验证 REST 发送：群聊用 conversationId 当 openConversationId
+            uid = raw.get("senderStaffId")
+            cid = raw.get("conversationId") if conv_type == "2" else None
+            print("\n试用 REST 接口发文字"
+                  + ("（群聊，拿 conversationId 当 openConversationId）"
+                     if cid else "（单聊）") + " …")
+            st, resp = send_text(creds, robot, "探针：REST 发送测试",
+                                 user_id=uid, conversation_id=cid)
+            print(f"  HTTP {st}: " + json.dumps(resp, ensure_ascii=False)[:300])
+            if cid:
+                print("  → 收到这条就说明 conversationId 可以直接当 openConversationId 用")
+
             if a.send_back:
                 print(f"\n试发文件 {os.path.basename(a.send_back)} …")
                 try:
@@ -208,8 +241,6 @@ def main():
                     print("  上传结果:", json.dumps(up, ensure_ascii=False)[:200])
                     mid = up.get("media_id")
                     if mid:
-                        uid = raw.get("senderStaffId")
-                        cid = raw.get("conversationId") if conv_type == "2" else None
                         st, resp = send_file(
                             creds, robot, media_id=mid,
                             filename=os.path.basename(a.send_back),
