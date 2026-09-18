@@ -116,4 +116,13 @@ DATA_DIR=./data API_TOKEN=dev .venv/bin/uvicorn app.main:app --reload
 
 ## 许可
 
-MIT
+[PolyForm Noncommercial License 1.0.0](LICENSE)
+
+可以自由查看、修改、分发和**非商业使用**——个人使用、学习研究、
+公益组织与政府机构使用都在许可范围内。
+
+**商业使用需要单独授权**，请开 Issue 联系作者。
+
+需要注意：这不是 OSI 认可的开源许可证（开源的定义要求不得限制使用领域，
+包括商业领域），准确的说法是"源码可得"。如果你需要在公司里用，
+先来谈授权，别直接上。
