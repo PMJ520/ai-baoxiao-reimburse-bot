@@ -181,29 +181,45 @@ button:disabled:hover { filter: none; }
 }
 #cli-setup pre.mono code { white-space: pre; }
 
-/* ---- 设置页卡片 ---- */
-.card {
+/* ---- 设置页：卡片网格 + 弹出编辑 ---- */
+.cards {
+  display: grid; gap: 14px; margin-top: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.tile {
   border: 1px solid var(--line); border-radius: var(--radius);
-  background: var(--surface); margin-bottom: 12px; overflow: hidden;
+  background: var(--surface); padding: 16px 16px 14px;
+  cursor: pointer; transition: border-color .15s, transform .15s;
 }
-.card-hd {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 16px; cursor: pointer; user-select: none;
-}
-.card-hd:hover { background: var(--bg); }
-.card-t { font-weight: 600; white-space: nowrap; }
-.card-t .state { margin-left: 8px; font-weight: 400; font-size: 13px; }
-.card-k {
-  flex: 1; color: var(--ink-3); font-size: 13px;
+.tile:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.tile-t { font-weight: 600; font-size: 15px; margin-bottom: 10px; }
+.tile .state { font-size: 12.5px; }
+.tile-k {
+  margin-top: 10px; font-size: 13px; color: var(--ink-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ghost {
-  border: 1px solid var(--line); background: transparent; color: var(--ink-2);
-  padding: 4px 14px; border-radius: 5px; font: inherit; font-size: 13px;
-  cursor: pointer; white-space: nowrap;
+.tile-w {
+  margin-top: 3px; font-size: 12px; color: var(--ink-3); min-height: 16px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ghost:hover { border-color: var(--line-strong); color: var(--ink); }
-.card-body { padding: 4px 16px 16px; border-top: 1px solid var(--line); }
+.state.mute { color: var(--ink-3); }
+.state.mute .dot { background: var(--ink-3); }
+
+dialog.editor {
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink);
+  width: min(560px, calc(100vw - 32px)); padding: 22px 24px 20px;
+  max-height: 86vh; overflow-y: auto;
+}
+dialog.editor.wide { width: min(760px, calc(100vw - 32px)); }
+dialog.editor::backdrop { background: rgba(0, 0, 0, .45); }
+dialog.editor h2 { margin: 0 0 4px; font-size: 17px; }
+dialog.editor .x { float: right; margin: -6px -6px 0 0; }
+dialog.editor .x button {
+  border: none; background: transparent; color: var(--ink-3);
+  font-size: 22px; line-height: 1; cursor: pointer; padding: 2px 6px;
+}
+dialog.editor .x button:hover { color: var(--ink); }
 
 /* 分步说明：照着做即可，不解释原理 */
 .steps { margin: 14px 0 16px; padding-left: 22px; }
