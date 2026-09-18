@@ -264,26 +264,29 @@ def templates_page(request: Request, msg: str = "", ok: int = 0):
 @router.post("/templates")
 async def template_register(request: Request, name: str = Form(...),
                             file: UploadFile = File(...)):
+    """只负责收文件和排队，推断本身丢给后台线程。
+
+    推断要调模型读表头，CLI 方式跑几分钟很常见。挂在 HTTP 请求上等，
+    浏览器或反向代理任何一环超时都会失败，页面还卡着干不了别的。
+    """
     if not _guard(request):
         return auth.redirect_login()
+    from ..services import template_jobs as TJ
+
     data = await file.read()
     suffix = Path(file.filename or "x.xlsx").suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as fh:
         fh.write(data)
-        path = fh.name
+        path = fh.name          # 临时文件由推断线程用完后删，这里不能删
     try:
-        with SessionLocal() as s:
-            t, rep = TPL.register(s, path, name)
-        if rep["usable"]:
-            msg, ok = f"「{name}」推断完成，校验通过，可设为默认。", 1
-        else:
-            msg, ok = (f"「{name}」推断完成，但校验发现 {rep['total_diffs']} 处问题，"
-                       f"点「查看」核对后再启用。"), 0
-    except Exception as e:
-        msg, ok = f"推断失败：{e}", 0
-    finally:
+        TJ.start(name, path)
+    except Exception as e:      # noqa: BLE001
         Path(path).unlink(missing_ok=True)
-    return RedirectResponse(f"/admin/templates?msg={msg}&ok={ok}", status_code=302)
+        return RedirectResponse(f"/admin/templates?msg=排队失败：{e}&ok=0",
+                                status_code=302)
+    return RedirectResponse(
+        f"/admin/templates?msg=「{name}」已开始推断，完成后这页会自动更新&ok=1",
+        status_code=302)
 
 
 @router.get("/templates/{template_id}", response_class=HTMLResponse)

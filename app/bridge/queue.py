@@ -16,6 +16,11 @@ from dataclasses import dataclass, field
 # worker 每次长轮询最多挂 30 秒，所以超过这个数还没露面就是掉线了
 ONLINE_WINDOW = 75.0
 
+# 但"没露面"不等于"掉线"：worker 是单线程的，跑 CLI 期间不轮询。
+# 模版推断那种大提示词跑上几分钟很正常，只看轮询时间会把"正忙"误判成
+# "掉线"，于是别的调用被"worker 未连接"直接挡掉。领了活没交差也算活着。
+BUSY_WINDOW = 900.0
+
 
 @dataclass
 class Job:
@@ -33,6 +38,7 @@ class JobQueue:
     def __init__(self):
         self._pending = queue.Queue()
         self._inflight = {}
+        self._leases = {}          # job_id → 被领走的时刻
         self._lock = threading.Lock()
         self._worker = {}          # 最近一次拉取时上报的环境
         self._last_seen = 0.0
@@ -51,6 +57,7 @@ class JobQueue:
         """调用方等超时后清理，避免 worker 迟到的结果堆在内存里。"""
         with self._lock:
             self._inflight.pop(job_id, None)
+            self._leases.pop(job_id, None)
 
     # ---- worker 侧 ----
 
@@ -66,10 +73,12 @@ class JobQueue:
             # 调用方可能已经超时撤单，跳过这种任务继续取，别把它派给 worker
             with self._lock:
                 if job.id in self._inflight:
+                    self._leases[job.id] = time.time()
                     return job
 
     def finish(self, job_id, text="", error=""):
         with self._lock:
+            self._leases.pop(job_id, None)
             job = self._inflight.pop(job_id, None)
         if not job:
             return False
@@ -85,13 +94,19 @@ class JobQueue:
 
     # ---- 状态 ----
 
+    def busy(self):
+        """有活正在 worker 手上。"""
+        now = time.time()
+        with self._lock:
+            return any(now - t < BUSY_WINDOW for t in self._leases.values())
+
     def online(self):
-        return (time.time() - self._last_seen) < ONLINE_WINDOW
+        return ((time.time() - self._last_seen) < ONLINE_WINDOW) or self.busy()
 
     def state(self):
         with self._lock:
             env, seen = dict(self._worker), self._last_seen
-        return {"online": self.online(), "last_seen": seen,
+        return {"online": self.online(), "busy": self.busy(), "last_seen": seen,
                 "idle": int(time.time() - seen) if seen else None,
                 "env": env, "pending": self._pending.qsize()}
 

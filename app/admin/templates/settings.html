@@ -1,171 +1,202 @@
 {% extends "base.html" %}{% block body %}
 <h1>系统设置</h1>
-<div class="sub">改动即时生效并持久化；未修改内容时保存按钮不可点击</div>
+<div class="sub">每项默认收起，点「编辑」展开；改动即时生效并持久化</div>
 {% if msg %}<div class="err" style="background:{{ 'var(--ok-soft)' if ok else 'var(--bad-soft)' }};
-  color:{{ 'var(--ok)' if ok else 'var(--bad)' }}">{{ msg }}</div>{% endif %}
+  color:{{ 'var(--bad)' if not ok else 'var(--ok)' }}">{{ msg }}</div>{% endif %}
 
-<div class="panel">
-  <div class="hd">IM 通道
-    <span class="muted state {{ im.cls }}"><span class="dot"></span>
-      飞书：{{ im.label }}{% if im.why %}<span class="why"> · {{ im.why }}</span>{% endif %}
-    </span>
+{# ── 飞书 ── #}
+<div class="card">
+  <div class="card-hd" data-open="c-feishu">
+    <div class="card-t">飞书
+      <span class="state {{ im.cls }}"><span class="dot"></span>{{ im.label }}</span></div>
+    <div class="card-k">{{ feishu_id or '未填 App ID' }}{% if im.why %} · {{ im.why }}{% endif %}</div>
+    <button type="button" class="ghost">编辑</button>
   </div>
-  <form method="post" action="/admin/settings/feishu" data-dirty-guard>
-    <div class="form-rows">
-      <div class="two">
-        <div class="fr"><label>App ID</label>
-          <input name="app_id" value="{{ feishu_id or '' }}" placeholder="cli_xxxxxxxx"></div>
-        <div class="fr"><label>App Secret</label>
-          <input name="app_secret" type="password" placeholder="{{ feishu_secret_mask or '未配置' }}">
-          <div class="note">留空表示不修改</div></div>
+  <div class="card-body" id="c-feishu" hidden>
+    <ol class="steps">
+      <li>飞书开放平台 → 创建企业自建应用</li>
+      <li>事件订阅 → 选「长连接」模式</li>
+      <li>订阅事件：接收消息 v2.0</li>
+      <li>开通权限：im:message、im:resource、file:upload</li>
+      <li>发布版本并等待审核通过</li>
+      <li>把 App ID 和 App Secret 填到下面</li>
+    </ol>
+    <form method="post" action="/admin/settings/feishu" data-dirty-guard>
+      <div class="form-rows">
+        <div class="two">
+          <div class="fr"><label>App ID</label>
+            <input name="app_id" value="{{ feishu_id or '' }}" placeholder="cli_xxxxxxxx"></div>
+          <div class="fr"><label>App Secret</label>
+            <input name="app_secret" type="password" placeholder="{{ feishu_secret_mask or '未配置' }}">
+            <div class="note">留空表示不修改</div></div>
+        </div>
       </div>
-      <div class="note">
-        需在飞书开放平台创建企业自建应用，事件订阅选<strong>长连接模式</strong>，
-        并订阅「接收消息 v2.0」；权限需包含 im:message、im:resource、file:upload。
-      </div>
-    </div>
-    <div class="form-actions"><button class="primary" type="submit">保存并重连</button></div>
-  </form>
-</div>
-
-<div class="panel">
-  <div class="hd">钉钉通道
-    <span class="muted state {{ dt.cls }}"><span class="dot"></span>
-      {{ dt.label }}{% if dt.why %}<span class="why"> · {{ dt.why }}</span>{% endif %}
-    </span>
-  </div>
-  <form method="post" action="/admin/settings/dingtalk" data-dirty-guard>
-    <div class="form-rows">
-      <div class="two">
-        <div class="fr"><label>Client ID</label>
-          <input name="client_id" value="{{ dingtalk_id or '' }}" placeholder="dingxxxxxxxx">
-          <div class="note">即 AppKey</div></div>
-        <div class="fr"><label>Client Secret</label>
-          <input name="client_secret" type="password"
-                 placeholder="{{ dingtalk_secret_mask or '未配置' }}">
-          <div class="note">即 AppSecret，留空表示不修改</div></div>
-      </div>
-      <div class="note">
-        需在钉钉开放平台创建<strong>企业内部应用</strong>，添加机器人能力，
-        消息接收模式选 <strong>Stream 模式</strong>（不要选 HTTP 回调），
-        权限需包含机器人发送消息、媒体文件上传、文件下载。改完记得重新发布版本。
-        <br>
-        <span class="warn-t">注意：钉钉群里发不了文件——群机器人只能收到 @ 它的消息，
-        而发文件时无法同时 @。发票和行程单请在<strong>单聊</strong>里发。</span>
-      </div>
-    </div>
-    <div class="form-actions"><button class="primary" type="submit">保存并重连</button></div>
-  </form>
-</div>
-
-<div class="panel">
-  <div class="hd">对话模型
-    <span class="muted state {{ llm_state.cls }}"><span class="dot"></span>
-      {{ llm_state.label }}{% if llm_state.why %}<span class="why"> · {{ llm_state.why }}</span>{% endif %}
-    </span>
-  </div>
-  <form method="post" action="/admin/settings/llm" data-dirty-guard>
-    <div class="form-rows">
-      <div class="two">
-        <div class="fr"><label>厂商</label>
-          <select name="provider">
-            {% for v,t in providers %}
-            <option value="{{v}}" {{ 'selected' if v==llm.provider }}>{{t}}</option>{% endfor %}
-          </select>
-          <div class="note">通义、DeepSeek、智谱等兼容 OpenAI 协议的都选这个</div></div>
-        <div class="fr" id="fr-model"><label>模型名</label>
-          <input name="model" value="{{ llm.model or '' }}" placeholder="留空用默认"></div>
-      </div>
-      <div class="fr"><label id="lb-key">API Key</label>
-        <input name="api_key" type="password" placeholder="{{ llm_key_mask or '未配置' }}">
-        <div class="note" id="nt-key">留空表示不修改</div></div>
-      <div class="fr"><label id="lb-url">Base URL</label>
-        <input name="base_url" value="{{ llm.base_url or '' }}"
-               placeholder="OpenAI 兼容端点，Claude 可留空"></div>
-    </div>
-    <div class="form-actions">
-      <button class="primary" type="submit">保存</button>
-      {% if llm_state.cls != 'bad' %}
-      <a href="/admin/settings/llm/test" style="margin-left:12px">测试连通性</a>{% endif %}
-    </div>
-  </form>
-
-  <div id="cli-setup" hidden>
-    <div class="hr"></div>
-    <div class="sub">在装有 CLI 的机器上跑一条命令</div>
-    <div class="note">
-      本机 CLI 方式复用那台机器上已登录的 CLI，不需要 API Key。它会主动来取任务，
-      所以不用开端口、也不必是 Docker 宿主机——任何一台能访问本后台的机器都行。
-      <span class="warn-t">比直连 API 慢数秒，且串行执行，适合自用不适合跑量。</span>
-    </div>
-
-    <div class="worker-st {{ 'ok' if worker.online else 'bad' }}">
-      {% if worker.online %}
-        worker 在线 ·
-        {{ worker.env.os }} {{ worker.env.arch }} · {{ worker.env.cli }} {{ worker.env.ver }}
-      {% else %}
-        worker 未连接{% if host_hint.why %} · 宿主机探测：{{ host_hint.why }}{% endif %}
-      {% endif %}
-    </div>
-
-    <div class="tabs" id="os-tabs">
-      <button type="button" data-os="macos">macOS</button>
-      <button type="button" data-os="linux">Linux</button>
-      <button type="button" data-os="windows">Windows</button>
-      <button type="button" data-os="manual">通用 / 手动</button>
-    </div>
-
-    <div class="cmd" data-os="macos" hidden>
-      <pre class="mono"><code id="cmd-macos"></code></pre>
-      <div class="note">需要 curl（系统自带）。装完会用 launchd 注册登录自启。</div>
-    </div>
-    <div class="cmd" data-os="linux" hidden>
-      <pre class="mono"><code id="cmd-linux"></code></pre>
-      <div class="note">需要 curl。装完会用 systemd --user 注册开机自启。</div>
-    </div>
-    <div class="cmd" data-os="windows" hidden>
-      <pre class="mono"><code id="cmd-windows"></code></pre>
-      <div class="note">PowerShell 5.1 起，Windows 10/11 自带，不需要装 Python。
-        装完会注册为登录时启动的计划任务。</div>
-    </div>
-    <div class="cmd" data-os="manual" hidden>
-      <div class="note">
-        没有上面三种环境（群晖、OpenWrt、Alpine 等），或想自己实现 worker：
-        协议很简单，<b>全程不涉及 JSON</b>，任何语言、哪怕 busybox 的 sh 都能写。
-      </div>
-      <pre class="mono"><code id="cmd-manual"></code></pre>
-      <div class="note">
-        协议三个接口（鉴权统一用 <code class="mono">Authorization: Bearer &lt;桥接令牌&gt;</code>）：<br>
-        <code class="mono">GET /bridge/jobs/next?wait=30</code> —— 长轮询要活。
-        200 时 body 就是提示词全文，任务号在响应头 <code class="mono">X-Job-Id</code>；204 表示这段时间没活。<br>
-        <code class="mono">POST /bridge/jobs/&lt;id&gt;/result</code> —— body 放 CLI 的原样输出。<br>
-        <code class="mono">POST /bridge/jobs/&lt;id&gt;/result?error=1</code> —— body 放错误信息。<br>
-        详见仓库 <code class="mono">bridge/README.md</code>。
-      </div>
-    </div>
+      <div class="form-actions"><button class="primary" type="submit">保存并重连</button></div>
+    </form>
   </div>
 </div>
 
-
-
-<div class="panel">
-  <div class="hd">修改登录密码</div>
-  <form method="post" action="/admin/settings/password" data-dirty-guard>
-    <div class="form-rows">
-      <div class="fr"><label>当前密码</label>
-        <input name="old" type="password" autocomplete="current-password" required></div>
-      <div class="two">
-        <div class="fr"><label>新密码</label>
-          <input name="new1" type="password" autocomplete="new-password" required minlength="8">
-          <div class="note">至少 8 位</div></div>
-        <div class="fr"><label>确认新密码</label>
-          <input name="new2" type="password" autocomplete="new-password" required></div>
+{# ── 钉钉 ── #}
+<div class="card">
+  <div class="card-hd" data-open="c-dingtalk">
+    <div class="card-t">钉钉
+      <span class="state {{ dt.cls }}"><span class="dot"></span>{{ dt.label }}</span></div>
+    <div class="card-k">{{ dingtalk_id or '未填 Client ID' }}{% if dt.why %} · {{ dt.why }}{% endif %}</div>
+    <button type="button" class="ghost">编辑</button>
+  </div>
+  <div class="card-body" id="c-dingtalk" hidden>
+    <ol class="steps">
+      <li>钉钉开放平台 → 创建企业内部应用</li>
+      <li>应用能力 → 添加机器人</li>
+      <li>消息接收模式 → 选「Stream 模式」</li>
+      <li>开通权限：机器人发送消息、媒体文件上传、文件下载</li>
+      <li>版本管理与发布 → 发布上线</li>
+      <li>把 Client ID 和 Client Secret 填到下面</li>
+    </ol>
+    <div class="note warn-t">群里发不了文件——群机器人只收 @ 它的消息，而发文件时无法 @。
+      发票请在单聊里发，群里只能下指令。</div>
+    <form method="post" action="/admin/settings/dingtalk" data-dirty-guard>
+      <div class="form-rows">
+        <div class="two">
+          <div class="fr"><label>Client ID</label>
+            <input name="client_id" value="{{ dingtalk_id or '' }}" placeholder="dingxxxxxxxx">
+            <div class="note">即 AppKey</div></div>
+          <div class="fr"><label>Client Secret</label>
+            <input name="client_secret" type="password"
+                   placeholder="{{ dingtalk_secret_mask or '未配置' }}">
+            <div class="note">即 AppSecret，留空表示不修改</div></div>
+        </div>
       </div>
-      <div class="note">改完会退出登录，需用新密码重新登录。</div>
-    </div>
-    <div class="form-actions"><button class="primary" type="submit">修改密码</button></div>
-  </form>
+      <div class="form-actions"><button class="primary" type="submit">保存并重连</button></div>
+    </form>
+  </div>
 </div>
+
+{# ── 对话模型 ── #}
+<div class="card">
+  <div class="card-hd" data-open="c-llm">
+    <div class="card-t">对话模型
+      <span class="state {{ llm_state.cls }}"><span class="dot"></span>{{ llm_state.label }}</span></div>
+    <div class="card-k">{{ llm.provider or '未选厂商' }}{% if llm_state.why %} · {{ llm_state.why }}{% endif %}</div>
+    <button type="button" class="ghost">编辑</button>
+  </div>
+  <div class="card-body" id="c-llm" hidden>
+    <ol class="steps" id="steps-api">
+      <li>选厂商</li>
+      <li>填 API Key（OpenAI 兼容的还要填 Base URL）</li>
+      <li>点「保存」</li>
+      <li>点「测试连通性」确认</li>
+    </ol>
+    <ol class="steps" id="steps-cli" hidden>
+      <li>点「生成一个」得到桥接令牌</li>
+      <li>点「保存」</li>
+      <li>在装有 CLI 的机器上执行下方命令</li>
+      <li>回到本页点「测试连通性」确认</li>
+    </ol>
+    <form method="post" action="/admin/settings/llm" data-dirty-guard>
+      <div class="form-rows">
+        <div class="two">
+          <div class="fr"><label>厂商</label>
+            <select name="provider">
+              {% for v,t in providers %}
+              <option value="{{v}}" {{ 'selected' if v==llm.provider }}>{{t}}</option>{% endfor %}
+            </select></div>
+          <div class="fr" id="fr-model"><label>模型名</label>
+            <input name="model" value="{{ llm.model or '' }}" placeholder="留空用默认"></div>
+        </div>
+        <div class="fr"><label id="lb-key">API Key</label>
+          <input name="api_key" type="password" placeholder="{{ llm_key_mask or '未配置' }}">
+          <div class="note" id="nt-key">留空表示不修改</div></div>
+        <div class="fr"><label id="lb-url">Base URL</label>
+          <input name="base_url" value="{{ llm.base_url or '' }}"
+                 placeholder="OpenAI 兼容端点，Claude 可留空"></div>
+      </div>
+      <div class="form-actions">
+        <button class="primary" type="submit">保存</button>
+        {% if llm_state.cls != 'bad' %}
+        <a href="/admin/settings/llm/test" style="margin-left:12px">测试连通性</a>{% endif %}
+      </div>
+    </form>
+
+    <div id="cli-setup" hidden>
+      <div class="hr"></div>
+      <div class="sub">在装有 CLI 的机器上跑一条命令</div>
+      <div class="worker-st {{ 'ok' if worker.online else 'bad' }}">
+        {% if worker.online %}
+          worker 在线{% if worker.busy %}（正在处理任务）{% endif %} ·
+          {{ worker.env.os }} {{ worker.env.arch }} · {{ worker.env.cli }} {{ worker.env.ver }}
+        {% else %}
+          worker 未连接{% if host_hint.why %} · 宿主机探测：{{ host_hint.why }}{% endif %}
+        {% endif %}
+      </div>
+      <div class="tabs" id="os-tabs">
+        <button type="button" data-os="macos">macOS</button>
+        <button type="button" data-os="linux">Linux</button>
+        <button type="button" data-os="windows">Windows</button>
+        <button type="button" data-os="manual">通用 / 手动</button>
+      </div>
+      <div class="cmd" data-os="macos" hidden>
+        <pre class="mono"><code id="cmd-macos"></code></pre>
+        <div class="note">装完会用 launchd 注册登录自启。</div>
+      </div>
+      <div class="cmd" data-os="linux" hidden>
+        <pre class="mono"><code id="cmd-linux"></code></pre>
+        <div class="note">装完会用 systemd --user 注册开机自启。</div>
+      </div>
+      <div class="cmd" data-os="windows" hidden>
+        <pre class="mono"><code id="cmd-windows"></code></pre>
+        <div class="note">PowerShell 5.1 起，Windows 10/11 自带，不需要装 Python。</div>
+      </div>
+      <div class="cmd" data-os="manual" hidden>
+        <pre class="mono"><code id="cmd-manual"></code></pre>
+        <div class="note">
+          协议三个接口，鉴权用 <code class="mono">Authorization: Bearer &lt;桥接令牌&gt;</code>：<br>
+          <code class="mono">GET /bridge/jobs/next?wait=30</code> 取活，body 是提示词，任务号在 X-Job-Id<br>
+          <code class="mono">POST /bridge/jobs/&lt;id&gt;/result</code> 回传输出<br>
+          <code class="mono">POST /bridge/jobs/&lt;id&gt;/result?error=1</code> 回传错误<br>
+          详见仓库 <code class="mono">bridge/README.md</code>。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── 密码 ── #}
+<div class="card">
+  <div class="card-hd" data-open="c-pw">
+    <div class="card-t">登录密码</div>
+    <div class="card-k">改完会退出登录，需用新密码重新登录</div>
+    <button type="button" class="ghost">编辑</button>
+  </div>
+  <div class="card-body" id="c-pw" hidden>
+    <form method="post" action="/admin/settings/password" data-dirty-guard>
+      <div class="form-rows">
+        <div class="fr"><label>当前密码</label>
+          <input name="old" type="password" autocomplete="current-password" required></div>
+        <div class="two">
+          <div class="fr"><label>新密码</label>
+            <input name="new1" type="password" autocomplete="new-password" required minlength="8">
+            <div class="note">至少 8 位</div></div>
+          <div class="fr"><label>确认新密码</label>
+            <input name="new2" type="password" autocomplete="new-password" required></div>
+        </div>
+      </div>
+      <div class="form-actions"><button class="primary" type="submit">修改密码</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+// 卡片展开：默认全收起，只看关键信息；要改才展开
+document.querySelectorAll('.card-hd').forEach(function (hd) {
+  hd.addEventListener('click', function () {
+    var body = document.getElementById(hd.dataset.open);
+    if (!body) return;
+    body.hidden = !body.hidden;
+    hd.querySelector('.ghost').textContent = body.hidden ? '编辑' : '收起';
+  });
+});
+</script>
 <script src="/admin/static/settings.js"></script>
 <script>
 // 选本机 CLI 时这张表的含义整个变了：不再填 API Key 和 Base URL，
@@ -187,6 +218,9 @@
     urlRow.hidden = cli;              // CLI 方式不需要 Base URL
     // 模型由那台机器上的 CLI 自己决定，这里填了也不起作用，留着会误导
     document.getElementById('fr-model').hidden = cli;
+    // 步骤说明跟着换——两种方式要做的事完全不同
+    document.getElementById('steps-api').hidden = cli;
+    document.getElementById('steps-cli').hidden = !cli;
     document.getElementById('cli-setup').hidden = !cli;
     if (cli) { bindGen(); render(); }
   }

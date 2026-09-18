@@ -10,10 +10,13 @@
 {% for t in tpls %}<tr>
   <td class="dim">{{ t.id }}</td><td>{{ t.name }}</td>
   <td class="num">{{ t.columns }}</td>
-  <td>{% if t.usable %}<span class="tag ok">通过</span>
+  <td>{% if t.job == 'running' %}<span class="tag warn">推断中…</span>
+      {% elif t.job == 'failed' %}<span class="tag bad" title="{{ t.job_detail }}">推断失败</span>
+      {% elif t.usable %}<span class="tag ok">通过</span>
       {% else %}<span class="tag bad">{{ t.diffs or '?' }} 处问题</span>{% endif %}</td>
   <td>{% if t.is_default %}<span class="tag ok">默认</span>{% endif %}</td>
-  <td><a href="/admin/templates/{{ t.id }}">查看</a>
+  <td>{% if t.job == 'running' %}<span class="dim">{{ t.job_detail }}</span>
+      {% else %}<a href="/admin/templates/{{ t.id }}">查看</a>{% endif %}
       {% if t.usable and not t.is_default %}
       · <a href="/admin/templates/{{ t.id }}/activate">设为默认</a>{% endif %}</td>
 </tr>{% endfor %}
@@ -26,6 +29,13 @@
   <button class="primary" type="submit">推断并校验</button>
 </form>
 <p class="hint" style="padding:0 18px 16px;margin:0">
-  推断只在注册时调用一次模型；之后出表纯代码套用，不再调用。</p>
+  推断只在注册时调用一次模型；之后出表纯代码套用，不再调用。
+  推断在后台进行，可以关掉此页，回来再看。</p>
 </div>
+<script>
+// 有推断在跑就定时刷新——推断耗时不定，让用户自己按 F5 不合适
+if ({{ tpls | selectattr('job', 'equalto', 'running') | list | length }} > 0) {
+  setTimeout(function () { location.reload(); }, 5000);
+}
+</script>
 {% endblock %}

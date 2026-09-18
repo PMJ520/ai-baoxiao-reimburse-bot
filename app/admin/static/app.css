@@ -180,3 +180,31 @@ button:disabled:hover { filter: none; }
   overflow-x: auto; font-size: 12.5px; line-height: 1.6;
 }
 #cli-setup pre.mono code { white-space: pre; }
+
+/* ---- 设置页卡片 ---- */
+.card {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); margin-bottom: 12px; overflow: hidden;
+}
+.card-hd {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; cursor: pointer; user-select: none;
+}
+.card-hd:hover { background: var(--bg); }
+.card-t { font-weight: 600; white-space: nowrap; }
+.card-t .state { margin-left: 8px; font-weight: 400; font-size: 13px; }
+.card-k {
+  flex: 1; color: var(--ink-3); font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ghost {
+  border: 1px solid var(--line); background: transparent; color: var(--ink-2);
+  padding: 4px 14px; border-radius: 5px; font: inherit; font-size: 13px;
+  cursor: pointer; white-space: nowrap;
+}
+.ghost:hover { border-color: var(--line-strong); color: var(--ink); }
+.card-body { padding: 4px 16px 16px; border-top: 1px solid var(--line); }
+
+/* 分步说明：照着做即可，不解释原理 */
+.steps { margin: 14px 0 16px; padding-left: 22px; }
+.steps li { margin: 5px 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.6; }

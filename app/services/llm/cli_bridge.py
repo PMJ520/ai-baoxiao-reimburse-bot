@@ -32,11 +32,15 @@ class CLIBridgeClient(LLMClient):
         prompt = f"{system.strip()}\n\n{user.strip()}" if system else user.strip()
         job = QUEUE.submit(prompt, model=self.model, max_tokens=max_tokens)
         if not job.done.wait(self.timeout):
-            QUEUE.drop(job.id)
             st = QUEUE.state()
-            hint = "worker 已掉线" if not st["online"] else "worker 仍在线但未按时返回"
-            raise LLMError(f"等待 worker 超时（{self.timeout:.0f} 秒）：{hint}。"
-                           f"CLI 首次调用较慢，必要时可加大超时。")
+            QUEUE.drop(job.id)
+            if st.get("busy"):
+                hint = "worker 还在跑这一条，只是超过了等待上限"
+            elif st.get("online"):
+                hint = "worker 在线但没接这一条"
+            else:
+                hint = "worker 已掉线"
+            raise LLMError(f"等待 worker 超时（{self.timeout:.0f} 秒）：{hint}。")
         if job.error:
             raise LLMError(f"worker 执行失败：{job.error[:300]}")
         if not (job.text or "").strip():

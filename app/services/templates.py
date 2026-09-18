@@ -79,9 +79,11 @@ def listing(session):
     out = []
     for t in session.scalars(select(M.Template).order_by(M.Template.id)):
         rep = (t.spec or {}).get("_report") or {}
+        job = (t.spec or {}).get("_job") or {}
         out.append({"id": t.id, "name": t.name, "kind": t.kind,
                     "is_default": t.is_default,
                     "usable": rep.get("usable"),
                     "columns": len((t.spec or {}).get("columns") or []),
-                    "diffs": rep.get("total_diffs")})
+                    "diffs": rep.get("total_diffs"),
+                    "job": job.get("status") or "", "job_detail": job.get("detail") or ""})
     return out
