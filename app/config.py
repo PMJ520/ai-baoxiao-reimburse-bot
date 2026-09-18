@@ -37,6 +37,13 @@ class FeishuConfig:
     app_id: str = field(default_factory=lambda: _env("FEISHU_APP_ID", ""))
     app_secret: str = field(default_factory=lambda: _env("FEISHU_APP_SECRET", ""))
 
+
+@dataclass
+class DingTalkConfig:
+    """企业内部应用的 ClientID / ClientSecret（即 AppKey / AppSecret）。"""
+    client_id: str = field(default_factory=lambda: _env("DINGTALK_CLIENT_ID", ""))
+    client_secret: str = field(default_factory=lambda: _env("DINGTALK_CLIENT_SECRET", ""))
+
     @property
     def ready(self):
         return bool(self.app_id and self.app_secret)
@@ -53,6 +60,7 @@ class Settings:
     debug: bool = field(default_factory=lambda: _bool("DEBUG", False))
     llm: LLMConfig = field(default_factory=LLMConfig)
     feishu: FeishuConfig = field(default_factory=FeishuConfig)
+    dingtalk: DingTalkConfig = field(default_factory=DingTalkConfig)
 
     @property
     def blob_dir(self) -> Path:

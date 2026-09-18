@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 K_ADMIN_PASSWORD = "admin_password_hash"
 K_FEISHU_ID = "feishu_app_id"
 K_FEISHU_SECRET = "feishu_app_secret"
+K_DINGTALK_ID = "dingtalk_client_id"
+K_DINGTALK_SECRET = "dingtalk_client_secret"
 K_LLM_PROVIDER = "llm_provider"
 K_LLM_KEY = "llm_api_key"
 K_LLM_BASE = "llm_base_url"
@@ -78,6 +80,12 @@ def feishu_config(session):
     d = get_many(session, [K_FEISHU_ID, K_FEISHU_SECRET])
     return (d.get(K_FEISHU_ID) or settings.feishu.app_id,
             d.get(K_FEISHU_SECRET) or settings.feishu.app_secret)
+
+
+def dingtalk_config(session):
+    d = get_many(session, [K_DINGTALK_ID, K_DINGTALK_SECRET])
+    return (d.get(K_DINGTALK_ID) or settings.dingtalk.client_id,
+            d.get(K_DINGTALK_SECRET) or settings.dingtalk.client_secret)
 
 
 def llm_config(session):

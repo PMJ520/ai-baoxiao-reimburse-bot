@@ -40,7 +40,7 @@ def _startup():
     if not (current_config().api_key or "").strip():
         log.warning("未配置 LLM，对话功能不可用")
     # 长连接放后台线程：它是阻塞的，放主线程会挡住 API
-    im_runner.start_feishu()
+    im_runner.start_all()
 
 
 @app.get("/health", tags=["meta"])

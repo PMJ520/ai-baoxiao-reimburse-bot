@@ -419,14 +419,18 @@ def settings_page(request: Request, msg: str = "", ok: int = 0):
 
     with SessionLocal() as s:
         fid, fsec = ST.feishu_config(s)
+        did, dsec = ST.dingtalk_config(s)
         llm = ST.llm_config(s)
-    raw = im_runner.status().get("feishu", "disabled")
+    st = im_runner.status()
+    raw = st.get("feishu", "disabled")
     with SessionLocal() as s:
         llm_state = _llm_state(s, llm)
     from ..bridge.queue import QUEUE
     return _page("settings.html", request, tab="set",
                  feishu_id=fid, feishu_secret_mask=ST.masked(fsec),
                  im=_im_state(raw, bool(fid and fsec)),
+                 dingtalk_id=did, dingtalk_secret_mask=ST.masked(dsec),
+                 dt=_im_state(st.get("dingtalk", "disabled"), bool(did and dsec)),
                  llm=llm, llm_state=llm_state,
                  llm_key_mask=ST.masked(llm["api_key"]),
                  providers=PROVIDERS, msg=msg, ok=bool(ok),
@@ -451,6 +455,23 @@ def settings_feishu(request: Request, app_id: str = Form(""),
             ST.put(s, ST.K_FEISHU_SECRET, app_secret.strip())
         fid, fsec = ST.feishu_config(s)
     msg = im_runner.restart_feishu(fid, fsec)
+    return RedirectResponse(f"/admin/settings?msg={msg}&ok=1", status_code=302)
+
+
+@router.post("/settings/dingtalk")
+def settings_dingtalk(request: Request, client_id: str = Form(""),
+                      client_secret: str = Form("")):
+    if not _guard(request):
+        return auth.redirect_login()
+    from ..im import runner as im_runner
+    from ..services import settings_store as ST
+
+    with SessionLocal() as s:
+        ST.put(s, ST.K_DINGTALK_ID, client_id.strip())
+        if client_secret.strip():       # 留空表示不修改，避免误清
+            ST.put(s, ST.K_DINGTALK_SECRET, client_secret.strip())
+        cid, csec = ST.dingtalk_config(s)
+    msg = im_runner.restart_dingtalk(cid, csec)
     return RedirectResponse(f"/admin/settings?msg={msg}&ok=1", status_code=302)
 
 

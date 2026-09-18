@@ -29,6 +29,36 @@
 </div>
 
 <div class="panel">
+  <div class="hd">钉钉通道
+    <span class="muted state {{ dt.cls }}"><span class="dot"></span>
+      {{ dt.label }}{% if dt.why %}<span class="why"> · {{ dt.why }}</span>{% endif %}
+    </span>
+  </div>
+  <form method="post" action="/admin/settings/dingtalk" data-dirty-guard>
+    <div class="form-rows">
+      <div class="two">
+        <div class="fr"><label>Client ID</label>
+          <input name="client_id" value="{{ dingtalk_id or '' }}" placeholder="dingxxxxxxxx">
+          <div class="note">即 AppKey</div></div>
+        <div class="fr"><label>Client Secret</label>
+          <input name="client_secret" type="password"
+                 placeholder="{{ dingtalk_secret_mask or '未配置' }}">
+          <div class="note">即 AppSecret，留空表示不修改</div></div>
+      </div>
+      <div class="note">
+        需在钉钉开放平台创建<strong>企业内部应用</strong>，添加机器人能力，
+        消息接收模式选 <strong>Stream 模式</strong>（不要选 HTTP 回调），
+        权限需包含机器人发送消息、媒体文件上传、文件下载。改完记得重新发布版本。
+        <br>
+        <span class="warn-t">注意：钉钉群里发不了文件——群机器人只能收到 @ 它的消息，
+        而发文件时无法同时 @。发票和行程单请在<strong>单聊</strong>里发。</span>
+      </div>
+    </div>
+    <div class="form-actions"><button class="primary" type="submit">保存并重连</button></div>
+  </form>
+</div>
+
+<div class="panel">
   <div class="hd">对话模型
     <span class="muted state {{ llm_state.cls }}"><span class="dot"></span>
       {{ llm_state.label }}{% if llm_state.why %}<span class="why"> · {{ llm_state.why }}</span>{% endif %}
