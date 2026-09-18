@@ -19,7 +19,11 @@ log = logging.getLogger(__name__)
 
 # 批次级字段：同一批报销里各行相同，但换一批就会变。
 # 单份样例里它们整列同值属正常，不可据此判定为固定值。
+# 这些字段在单份样例里天然整列相同，据此判错必然误报
 BATCH_LEVEL_FIELDS = {"requester", "handler", "company", "apply_date"}
+# 行级字段，但同一批报销里常常整批同值（一批打车全是交通费、全是替票）
+OFTEN_UNIFORM = {"category", "voucher"}
+UNIFORM_OK = BATCH_LEVEL_FIELDS | OFTEN_UNIFORM
 
 # 表头关键词 → 期望的字段。用于发现"表头写着金额、却映射成明细"这类错位。
 # 只列语义明确的，拿不准的不设约束——宁可放过也不要误报把人逼疯。
@@ -167,10 +171,11 @@ def _independent_facts(path, spec):
 def replay(path, spec, tolerance=0.01):
     """按独立事实校验 spec。返回 {ok, checked, diffs}。"""
     facts = _independent_facts(path, spec)
-    diffs, checked = [], 0
+    diffs, warns, checked = [], [], 0
 
     if facts["data_rows"] == 0:
         return {"ok": False, "checked": 0, "rows": 0, "total_diffs": 1,
+                "warns": [], "total_warns": 0,
                 "diffs": [{"msg": f"第 {spec.data_start_row} 行起没有数据，"
                                   f"data_start_row 可能不对"}]}
 
@@ -211,11 +216,15 @@ def replay(path, spec, tolerance=0.01):
             # 但需求人、公司这类"每批相同、跨批会变"的字段，在单份样例里
             # 天然整列相同，不能据此判错——否则正确的 spec 会被误报。
             if (info["constant"] and facts["data_rows"] >= 3
-                    and col.source not in BATCH_LEVEL_FIELDS):
-                diffs.append({"col": col.letter, "header": col.header,
+                    and col.source not in UNIFORM_OK):
+                # 只是可疑，不是事实不符：样例同质时，"固定值"和"恰好取值
+                # 相同的字段"在数据上无法区分。两可之下映射成字段更安全——
+                # 将来值变了能跟着变，映射成固定值则会永远输出这一个值。
+                # 所以列出来让人过目即可，不该拦住启用。
+                warns.append({"col": col.letter, "header": col.header,
                               "expect": _brief(info["const_value"]),
-                              "msg": f"样例中该列整列相同，应为固定值而非字段 "
-                                     f"{col.source!r}"})
+                              "msg": f"样例中该列整列相同，请确认它是固定值还是"
+                                     f"字段 {col.source!r}（样例可能同质）"})
 
     # 表头存在但没被映射的列，提示遗漏
     mapped = {c.letter for c in spec.columns}
@@ -223,9 +232,11 @@ def replay(path, spec, tolerance=0.01):
         if letter not in mapped and facts["columns"].get(letter):
             diffs.append({"col": letter, "header": hdr, "msg": "该列未被映射"})
 
+    # ok 只看错误：提示是供人过目的，不阻断启用
     return {"ok": not diffs, "checked": checked,
             "rows": facts["data_rows"], "diffs": diffs[:20],
-            "total_diffs": len(diffs)}
+            "total_diffs": len(diffs),
+            "warns": warns[:20], "total_warns": len(warns)}
 
 
 def _same(a, b, tol):
@@ -255,5 +266,6 @@ def check(path, spec):
         "replay_ok": rp["ok"], "checked_cells": rp["checked"],
         "sample_rows": rp.get("rows", 0),
         "diffs": rp["diffs"], "total_diffs": rp.get("total_diffs", 0),
+        "warns": rp.get("warns") or [], "total_warns": rp.get("total_warns", 0),
         "usable": (not errs) and rp["ok"],
     }

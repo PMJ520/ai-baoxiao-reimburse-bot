@@ -5,14 +5,20 @@
 <div class="stats">
   <div class="stat"><div class="n">{{ cols|length }}</div><div class="k">映射列</div></div>
   <div class="stat"><div class="n">{{ r.get('sample_rows', 0) }}</div><div class="k">样例数据行</div></div>
-  <div class="stat"><div class="n">{{ r.get('total_diffs', 0) }}</div><div class="k">校验问题</div></div>
+  <div class="stat"><div class="n">{{ r.get('total_diffs', 0) }}</div><div class="k">阻断问题</div></div>
+  <div class="stat"><div class="n">{{ r.get('total_warns', 0) }}</div><div class="k">待确认</div></div>
   <div class="stat"><div class="n">{% if r.get('usable') %}<span class="tag ok">可用</span>
       {% else %}<span class="tag bad">不可用</span>{% endif %}</div><div class="k">状态</div></div>
 </div>
-{% if r.get('diffs') %}<div class="panel"><div class="hd">校验发现的问题</div>
+{% if r.get('diffs') %}<div class="panel"><div class="hd">阻断问题（事实不符，须修正后才能启用）</div>
 <table><thead><tr><th>列</th><th>表头</th><th>说明</th></tr></thead><tbody>
 {% for d in r['diffs'] %}<tr><td class="mono">{{ d.get('col','—') }}</td>
   <td>{{ d.get('header','—') }}</td><td>{{ d.get('msg') or (d.get('expect')|string ~ ' ≠ ' ~ d.get('got')|string) }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if r.get('warns') %}<div class="panel"><div class="hd">待确认（猜测，不影响启用）</div>
+<table><thead><tr><th>列</th><th>表头</th><th>说明</th></tr></thead><tbody>
+{% for d in r['warns'] %}<tr><td class="mono">{{ d.get('col','—') }}</td>
+  <td>{{ d.get('header','—') }}</td><td>{{ d.get('msg') }}</td></tr>{% endfor %}
 </tbody></table></div>{% endif %}
 <div class="panel"><div class="hd">列映射</div>
 <table><thead><tr><th>列</th><th>表头</th><th>取数方式</th><th>条件</th></tr></thead><tbody>
