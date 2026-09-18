@@ -7,11 +7,13 @@ import json
 import os
 import platform
 import tempfile
+from urllib.parse import quote
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
+                               RedirectResponse)
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
@@ -134,6 +136,45 @@ def documents(request: Request, kind: str = "", status: str = "", q: str = ""):
                  f={"kind": kind, "status": status, "q": q})
 
 
+# 能内联显示的类型。其余一律当附件下载，避免把 html/svg 之类当页面渲染，
+# 那等于在本站域下执行别人上传的内容
+INLINE_TYPES = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp",
+    ".pdf": "application/pdf",
+}
+
+
+@router.get("/documents/{doc_id}/raw")
+def document_raw(request: Request, doc_id: int, download: int = 0):
+    """返回原件本身。看解析对不对，终究要能看到原图。"""
+    from fastapi.responses import FileResponse
+    from .. import storage
+
+    if not _guard(request):
+        return auth.redirect_login()
+    with SessionLocal() as s:
+        d = s.get(M.Document, doc_id)
+        if not d or not d.rel_path:
+            return PlainTextResponse("文件不存在", status_code=404)
+        rel, name = d.rel_path, d.filename or "file"
+
+    path = storage.abs_path(rel).resolve()
+    # rel_path 来自数据库不是用户输入，但仍要确认它落在 blob 目录内——
+    # 将来任何一处写入被污染的路径，这里就是最后一道闸
+    root = storage.settings.blob_dir.resolve()
+    if root not in path.parents or not path.is_file():
+        return PlainTextResponse("文件不存在", status_code=404)
+
+    ext = path.suffix.lower()
+    ctype = INLINE_TYPES.get(ext)
+    disp = "attachment" if (download or not ctype) else "inline"
+    return FileResponse(
+        path, media_type=ctype or "application/octet-stream",
+        headers={"Content-Disposition":
+                 f"{disp}; filename*=UTF-8''{quote(name)}"})
+
+
 @router.get("/documents/{doc_id}", response_class=HTMLResponse)
 def document_edit(request: Request, doc_id: int, saved: int = 0):
     if not _guard(request):
@@ -143,8 +184,12 @@ def document_edit(request: Request, doc_id: int, saved: int = 0):
         if not d:
             return RedirectResponse("/admin/documents", status_code=302)
         pj = json.dumps(d.parsed, ensure_ascii=False, indent=2) if d.parsed else ""
+        ext = Path(d.rel_path or "").suffix.lower()
+        preview = ("image" if ext in {".png", ".jpg", ".jpeg", ".gif",
+                                      ".webp", ".bmp"}
+                   else "pdf" if ext == ".pdf" else "")
     return _page("document_edit.html", request, tab="docs", d=d, kinds=KINDS,
-                 parsed_json=pj, saved=saved)
+                 parsed_json=pj, saved=saved, preview=preview)
 
 
 @router.post("/documents/{doc_id}")

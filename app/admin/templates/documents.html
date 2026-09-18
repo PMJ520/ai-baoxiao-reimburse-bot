@@ -27,7 +27,8 @@
     <td>{{ status_tag(d.status)|safe }}
         {% if d.parse_error %}<div class="hint">{{ d.parse_error }}</div>{% endif %}</td>
     <td class="mono">{{ d.filename[:30] }}</td>
-    <td><a href="/admin/documents/{{ d.id }}">编辑</a></td>
+    <td><a href="/admin/documents/{{ d.id }}/raw" target="_blank">查看</a>
+        · <a href="/admin/documents/{{ d.id }}">编辑</a></td>
   </tr>{% endfor %}
   {% if not docs %}<tr><td colspan="8" class="empty">没有符合条件的文件</td></tr>{% endif %}
   </tbody></table>

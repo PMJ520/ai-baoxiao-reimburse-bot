@@ -1,7 +1,29 @@
 {% extends "base.html" %}{% block body %}
 <h1>订正识别结果</h1>
-<div class="sub"><a href="/admin/documents">← 返回列表</a></div>
+<div class="sub"><a href="/admin/documents">← 返回列表</a>
+  {% if preview %} · <a href="/admin/documents/{{ d.id }}/raw" target="_blank">新窗口打开原件</a>{% endif %}
+  · <a href="/admin/documents/{{ d.id }}/raw?download=1">下载原件</a></div>
 {% if saved %}<div class="err" style="background:var(--ok-soft);color:var(--ok)">已保存</div>{% endif %}
+<div class="side-by-side">
+<div class="panel"><div class="hd">原件</div>
+{% if preview == 'image' %}
+  <div class="viewer"><img src="/admin/documents/{{ d.id }}/raw" alt="{{ d.filename }}"></div>
+{% elif preview == 'pdf' %}
+  {# 用 object 而非 embed：没有 PDF 插件的浏览器（含多数移动端）会显示
+     内部的兜底内容，而 embed 只会留下一块空白，让人以为文件坏了 #}
+  <div class="viewer"><object data="/admin/documents/{{ d.id }}/raw"
+          type="application/pdf">
+    <div class="empty" style="padding:28px">
+      当前浏览器无法内嵌显示 PDF。<br>
+      <a href="/admin/documents/{{ d.id }}/raw" target="_blank">新窗口打开</a> ·
+      <a href="/admin/documents/{{ d.id }}/raw?download=1">下载</a>
+    </div>
+  </object></div>
+{% else %}
+  <div class="empty" style="padding:28px">这类文件没法在页面里预览，可以下载后查看</div>
+{% endif %}
+</div>
+
 <div class="panel"><div class="hd">{{ d.filename }}</div>
 <form method="post" style="padding:18px">
   <div class="kv" style="margin-bottom:18px">
@@ -24,6 +46,7 @@
     <option value="{{k}}" {{ 'selected' if k==d.kind }}>{{v}}</option>{% endfor %}</select>
   <div style="margin-top:20px"><button class="primary" type="submit">保存</button></div>
 </form></div>
+</div>
 {% if d.parsed %}<div class="panel"><div class="hd">原始识别结果</div>
 <pre style="padding:16px;margin:0;font-size:12px;overflow:auto;color:var(--ink-2)">{{ parsed_json }}</pre>
 </div>{% endif %}
