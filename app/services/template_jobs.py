@@ -38,10 +38,18 @@ def job_of(tpl):
     return (tpl.spec or {}).get("_job") or {}
 
 
+class Busy(RuntimeError):
+    """同名模版正在推断中。"""
+
+
 def start(name: str, sample_path: str) -> int:
     """建占位记录并在后台开跑，返回模版 id。"""
     with SessionLocal() as s:
         tpl = s.scalar(select(M.Template).where(M.Template.name == name))
+        # 同名的还在跑就别覆盖：占位记录一改，前一个线程跑完会把结果写到
+        # 新样例的名下，两份样例的结论就混在一起了
+        if tpl and job_of(tpl).get("status") == RUNNING:
+            raise Busy(name)
         if not tpl:
             tpl = M.Template(name=name, kind="custom")
             s.add(tpl)

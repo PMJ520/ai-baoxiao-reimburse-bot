@@ -261,6 +261,19 @@ def templates_page(request: Request, msg: str = "", ok: int = 0):
                  msg=msg, ok=bool(ok))
 
 
+@router.get("/templates/status")
+def templates_status(request: Request):
+    """只返回状态，供页面轮询。
+
+    整页刷新会把用户正在填的表单连同选好的文件一起清掉——推断要跑几分钟，
+    刷新必然撞上有人正在上传下一份。
+    """
+    if not _guard(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    with SessionLocal() as s:
+        return JSONResponse({"items": TPL.listing(s)})
+
+
 @router.post("/templates")
 async def template_register(request: Request, name: str = Form(...),
                             file: UploadFile = File(...)):
@@ -280,6 +293,11 @@ async def template_register(request: Request, name: str = Form(...),
         path = fh.name          # 临时文件由推断线程用完后删，这里不能删
     try:
         TJ.start(name, path)
+    except TJ.Busy:
+        Path(path).unlink(missing_ok=True)
+        return RedirectResponse(
+            f"/admin/templates?msg=「{name}」正在推断中，请等它结束，"
+            f"或换一个名称再传&ok=0", status_code=302)
     except Exception as e:      # noqa: BLE001
         Path(path).unlink(missing_ok=True)
         return RedirectResponse(f"/admin/templates?msg=排队失败：{e}&ok=0",

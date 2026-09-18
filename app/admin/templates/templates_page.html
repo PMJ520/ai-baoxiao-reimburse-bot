@@ -4,13 +4,17 @@
 校验通过才可启用</div>
 {% if msg %}<div class="err" style="background:{{ 'var(--ok-soft)' if ok else 'var(--bad-soft)' }};
   color:{{ 'var(--ok)' if ok else 'var(--bad)' }}">{{ msg }}</div>{% endif %}
+<div id="refresh-bar" class="err" hidden
+     style="background:var(--ok-soft);color:var(--ok)">
+  推断状态有更新 · <a href="/admin/templates">刷新查看</a>
+</div>
 <div class="panel"><div class="hd">已注册模版</div>
 <table><thead><tr><th>ID</th><th>名称</th><th class="num">映射列数</th>
   <th>校验</th><th>默认</th><th></th></tr></thead><tbody>
-{% for t in tpls %}<tr>
+{% for t in tpls %}<tr data-tid="{{ t.id }}">
   <td class="dim">{{ t.id }}</td><td>{{ t.name }}</td>
   <td class="num">{{ t.columns }}</td>
-  <td>{% if t.job == 'running' %}<span class="tag warn">推断中…</span>
+  <td class="cell-state">{% if t.job == 'running' %}<span class="tag warn">推断中…</span>
       {% elif t.job == 'failed' %}<span class="tag bad" title="{{ t.job_detail }}">推断失败</span>
       {% elif t.usable %}<span class="tag ok">通过</span>
       {% else %}<span class="tag bad">{{ t.diffs or '?' }} 处问题</span>{% endif %}</td>
@@ -26,16 +30,62 @@
 <form method="post" enctype="multipart/form-data" style="padding:18px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
   <div><label class="hint">模版名称</label><br><input name="name" placeholder="如：XX公司报销单" style="width:220px" required></div>
   <div><label class="hint">样例文件（.xlsx，需已填好数据）</label><br><input type="file" name="file" accept=".xlsx" required></div>
-  <button class="primary" type="submit">推断并校验</button>
+  <button class="primary" type="submit" id="btn-up">推断并校验</button>
+  <span id="up-tip" class="hint"></span>
 </form>
 <p class="hint" style="padding:0 18px 16px;margin:0">
   推断只在注册时调用一次模型；之后出表纯代码套用，不再调用。
   推断在后台进行，可以关掉此页，回来再看。</p>
 </div>
 <script>
-// 有推断在跑就定时刷新——推断耗时不定，让用户自己按 F5 不合适
-if ({{ tpls | selectattr('job', 'equalto', 'running') | list | length }} > 0) {
-  setTimeout(function () { location.reload(); }, 5000);
-}
+// 原来是整页刷新，结果把用户正在填的表单连同选好的文件一起清掉了——
+// 推断要跑几分钟，刷新必然撞上有人正在上传下一份。改成只更新状态格。
+(function () {
+  var TAGS = {
+    running: '<span class="tag warn">推断中…</span>',
+    failed:  '<span class="tag bad">推断失败</span>'
+  };
+  function cell(t) {
+    if (TAGS[t.job]) return TAGS[t.job];
+    if (t.usable) return '<span class="tag ok">通过</span>';
+    return '<span class="tag bad">' + (t.diffs || '?') + ' 处问题</span>';
+  }
+  function anyRunning(items) {
+    return items.some(function (t) { return t.job === 'running'; });
+  }
+  var notified = false;
+  function tick() {
+    fetch('/admin/templates/status', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var items = d.items || [];
+        items.forEach(function (t) {
+          var tr = document.querySelector('tr[data-tid="' + t.id + '"]');
+          if (!tr) { notified = true; return; }      // 新行，需要整页才能渲染
+          var td = tr.querySelector('.cell-state');
+          if (td) td.innerHTML = cell(t);
+        });
+        if (notified || items.length !== document.querySelectorAll('tr[data-tid]').length) {
+          showRefresh();
+          return;
+        }
+        if (anyRunning(items)) setTimeout(tick, 5000);
+        else showRefresh();                          // 推断完了，整页刷新才能出操作链接
+      })
+      .catch(function () { setTimeout(tick, 10000); });
+  }
+  function showRefresh() {
+    var b = document.getElementById('refresh-bar');
+    if (b) b.hidden = false;
+  }
+  if (document.querySelector('.tag.warn')) setTimeout(tick, 5000);
+
+  // 上传后给即时反馈：文件大、推断久，没反馈会让人以为点空了
+  var f = document.querySelector('form[enctype]');
+  if (f) f.addEventListener('submit', function () {
+    document.getElementById('btn-up').disabled = true;
+    document.getElementById('up-tip').textContent = '正在上传，推断将在后台进行…';
+  });
+})();
 </script>
 {% endblock %}
