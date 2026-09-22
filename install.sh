@@ -53,14 +53,33 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# 读输入必须走 /dev/tty：脚本常以 `curl | bash` 运行，stdin 是脚本本身。
+# 但 CI、容器、`bash < script` 这些场景根本没有 tty，此时 read 不会给变量
+# 赋值，set -u 下后面一比较就 "unbound variable" 崩掉——报错还看不出原因。
+# 光判 [ -r /dev/tty ] 不够：容器里这个文件存在、权限也够，但打开会失败。
+# 只有真开一次才知道。
+# 花括号分组不可少：重定向从左往右处理，写成 `exec 3</dev/tty 2>/dev/null`
+# 时 /dev/tty 先失败、2>/dev/null 还没生效，错误照样打到屏幕上
+has_tty() { { exec 3</dev/tty; } 2>/dev/null; }
+
 ask() {
     [ "$ASSUME_YES" = 1 ] && { printf '%s' "${2:-}"; return; }
-    local a; read -r -p "$1" a </dev/tty || true
+    local a=""
+    if has_tty; then
+        read -r -p "$1" a <&3 || true
+        exec 3<&-
+    fi
     printf '%s' "${a:-${2:-}}"
 }
 ask_yn() {
     [ "$ASSUME_YES" = 1 ] && return 0
-    local a; read -r -p "$1 [Y/n] " a </dev/tty || true
+    local a=""
+    if ! has_tty; then
+        info "$1 [无终端，按默认继续]"
+        return 0
+    fi
+    read -r -p "$1 [Y/n] " a <&3 || true
+    exec 3<&-
     [ -z "$a" ] || [ "$a" = y ] || [ "$a" = Y ]
 }
 # 不用 `tr </dev/urandom | head` —— head 提前关闭管道会让 tr 收到 SIGPIPE，
@@ -87,6 +106,76 @@ say "═════════════════════════
 say "   费用报销中枢 · 安装"
 say "════════════════════════════════════════════"
 
+# root 下不需要 sudo，精简镜像里也往往没装。留空即可，别让缺 sudo
+# 变成装不上 Docker 的原因
+if [ "$(id -u)" = 0 ] || ! command -v sudo >/dev/null 2>&1; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
+# ---------- Docker 安装 ----------
+# 官方源在部分地区连不上（表现为 curl (35) Connection reset by peer），
+# 一次失败就退出等于把人卡死在第一步。依次降级，全失败才给手动指引。
+
+DOCKER_HELP="Docker 安装失败。可按以下任一方式手动安装后重试：
+
+  1) 国内网络用阿里云镜像
+     curl -fsSL https://get.docker.com | sh -s -- --mirror Aliyun
+
+  2) 用系统自带的包
+     Debian/Ubuntu: sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2
+     CentOS/RHEL:   sudo dnf install -y docker docker-compose-plugin
+
+  3) 参考官方文档 https://docs.docker.com/engine/install/"
+
+COMPOSE_HELP="需要 Docker Compose v2。新版 Docker 自带，若用发行版的 docker.io 则需另装：
+
+  Debian/Ubuntu: sudo apt-get install -y docker-compose-v2
+  CentOS/RHEL:   sudo dnf install -y docker-compose-plugin"
+
+try_step() {   # 描述 命令…
+    _what="$1"; shift
+    info "尝试：$_what"
+    if "$@"; then
+        info "✅ Docker 已装好（$_what）"
+        return 0
+    fi
+    warn "$_what 未成功，换下一种"
+    return 1
+}
+
+get_docker_sh() {
+    # 单独下载再执行：`curl | sh` 的退出码取自 sh，curl 失败会被吞掉，
+    # 结果是"装不上却报成功"，后面在别处报一个看不懂的错
+    command -v curl >/dev/null 2>&1 || { warn "没有 curl，跳过官方脚本"; return 1; }
+    curl -fsSL https://get.docker.com -o "$1"
+}
+
+install_docker() {
+    _get="${TMPDIR:-/tmp}/get-docker.$$.sh"
+    if get_docker_sh "$_get"; then
+        try_step "官方安装脚本" sh "$_get" && { rm -f "$_get"; return 0; }
+        try_step "官方脚本 + 阿里云镜像" sh "$_get" --mirror Aliyun \
+            && { rm -f "$_get"; return 0; }
+    else
+        warn "下载官方安装脚本失败（网络不通），改用系统自带的包"
+    fi
+    rm -f "$_get"
+    if command -v apt-get >/dev/null 2>&1; then
+        try_step "apt 安装 docker.io" sh -c \
+            "$SUDO apt-get update && $SUDO apt-get install -y docker.io docker-compose-v2" \
+            && return 0
+    elif command -v dnf >/dev/null 2>&1; then
+        try_step "dnf 安装 docker" sh -c \
+            "$SUDO dnf install -y docker docker-compose-plugin" && return 0
+    elif command -v yum >/dev/null 2>&1; then
+        try_step "yum 安装 docker" sh -c \
+            "$SUDO yum install -y docker docker-compose-plugin" && return 0
+    fi
+    return 1
+}
+
 # ---------- 1. 环境 ----------
 OS="$(uname -s)"; ARCH="$(uname -m)"
 info "系统 $OS/$ARCH"
@@ -97,8 +186,8 @@ if ! command -v docker >/dev/null 2>&1; then
             say ""
             info "未检测到 Docker。"
             if ask_yn "  是否自动安装 Docker？"; then
-                curl -fsSL https://get.docker.com | sh || die "Docker 安装失败"
-                command -v systemctl >/dev/null 2>&1 && sudo systemctl enable --now docker || true
+                install_docker || die "$DOCKER_HELP"
+                command -v systemctl >/dev/null 2>&1 && $SUDO systemctl enable --now docker || true
             else
                 die "请先安装 Docker 后重试"
             fi ;;
@@ -110,7 +199,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 docker info >/dev/null 2>&1 || die "Docker 已安装但服务未运行。
        macOS 请从启动台打开 Docker Desktop；Linux 请执行 sudo systemctl start docker。"
-docker compose version >/dev/null 2>&1 || die "需要 Docker Compose v2（随新版 Docker 提供）"
+docker compose version >/dev/null 2>&1 || die "$COMPOSE_HELP"
 info "Docker $(docker info --format '{{.ServerVersion}}') 就绪"
 
 # ---------- 2. 访问方式 ----------
