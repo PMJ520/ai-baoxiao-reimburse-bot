@@ -1,14 +1,31 @@
-# 这里是一个示例 .cnb.yml
-  
-  # 匹配main分支
-  main:
-    # 触发事件为 push 事件
-    push:
-      # 这里是阶段任务示例，可配置任意多个阶段，这里以一个阶段为例
-      - name: "your first CNB building"
-        stages:
-          # 使用流水线输出你的构建配置数据
-          - name: echo your build data
-            script: echo ${CNB_BUILD_USER} 通过 ${CNB_BRANCH} 分支触发了 ${CNB_EVENT} 事件
-  
-  # 更多资料见 https://docs.cnb.cool/build/quick-start.html
+# CNB 云构建：在国内构建镜像并推到同平台的制品库。
+#
+# 为什么用它而不是只靠 GitHub Actions：构建过程要拉基础镜像、装 pip 依赖，
+# 在国内跑不用出境；推到同平台 registry 也没有跨境传输。GitHub Actions 那边
+# 继续推 ghcr.io，两个源各自就近服务。
+#
+# 流水线内置了触发者的访问凭据，推 CNB 制品库不需要 docker login。
+
+main:
+  push:
+    - services:
+        - docker
+      stages:
+        - name: 计算镜像地址
+          # 用平台变量而不是写死：仓库改名或迁移时不用改这里
+          script: echo -n "${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}"
+          exports:
+            info: IMAGE_BASE
+
+        - name: 构建镜像
+          # 同时打 latest 和短提交号：出问题时能精确回滚到某次提交
+          script: docker build -t "$IMAGE_BASE:latest" -t "$IMAGE_BASE:$CNB_COMMIT_SHORT" .
+
+        - name: 推送镜像
+          script: |
+            docker push "$IMAGE_BASE:latest"
+            docker push "$IMAGE_BASE:$CNB_COMMIT_SHORT"
+
+        - name: 输出镜像地址
+          # 装到服务器上要用这个地址，打出来省得去翻制品库
+          script: echo "镜像已推送：$IMAGE_BASE:latest"
