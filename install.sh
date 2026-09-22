@@ -365,6 +365,16 @@ fi
 [ -n "$FEISHU_ID" ] && [ -z "$FEISHU_SECRET" ] && FEISHU_SECRET="$(ask '  飞书 App Secret: ' '')"
 
 mkdir -p "$INSTALL_DIR/data"
+# 容器以 uid 10001 运行，而 Linux 的 bind mount 原样保留宿主机属主——
+# 目录归 root 的话容器写不进去，启动时报
+#   PermissionError: [Errno 13] Permission denied: '/data/blobs'
+# macOS 的 Docker Desktop 会自动映射属主，所以这个问题只在 Linux 上出现。
+if [ "$OS" = "Linux" ]; then
+    $SUDO chown -R 10001:10001 "$INSTALL_DIR/data" 2>/dev/null || {
+        warn "无法把数据目录属主改为 10001（容器运行用户），容器可能无法写入"
+        warn "可手动执行：sudo chown -R 10001:10001 $INSTALL_DIR/data"
+    }
+fi
 cd "$INSTALL_DIR"
 
 # 凭据只在首次生成，重跑不会把已有密码冲掉
