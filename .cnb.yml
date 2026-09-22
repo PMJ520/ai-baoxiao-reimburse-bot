@@ -17,14 +17,20 @@ main:
           exports:
             info: IMAGE_BASE
 
-        - name: 构建镜像
-          # 同时打 latest 和短提交号：出问题时能精确回滚到某次提交
-          script: docker build -t "$IMAGE_BASE:latest" -t "$IMAGE_BASE:$CNB_COMMIT_SHORT" .
-
-        - name: 推送镜像
+        # 构建机是 x86_64，默认只出 amd64。Apple Silicon 和 ARM 服务器拉
+        # 下来会报 "no matching manifest"，而那个错完全看不出是架构问题。
+        # 所以用 buildx 跨架构构建；arm64 走模拟，会慢一些但一次到位。
+        - name: 准备跨架构构建
           script: |
-            docker push "$IMAGE_BASE:latest"
-            docker push "$IMAGE_BASE:$CNB_COMMIT_SHORT"
+            docker run --privileged --rm tonistiigi/binfmt --install arm64 || true
+            docker buildx create --use --name multi || docker buildx use multi
+
+        - name: 构建并推送（amd64 + arm64）
+          # buildx 的多架构镜像只能直接推，不能先 load 到本地再推
+          script: |
+            docker buildx build --platform linux/amd64,linux/arm64 \
+              -t "$IMAGE_BASE:latest" -t "$IMAGE_BASE:$CNB_COMMIT_SHORT" \
+              --push .
 
         - name: 输出镜像地址
           # 装到服务器上要用这个地址，打出来省得去翻制品库

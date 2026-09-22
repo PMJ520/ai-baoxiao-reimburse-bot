@@ -21,7 +21,7 @@ lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
 # 两个镜像源。不按地理位置猜——同一个国内 IP 可能走专线通 GHCR，海外机器
 # 也可能访问 GitHub 受限。直接测哪个通、哪个快，测出来的事实比推断可靠。
 GHCR_IMAGE="ghcr.io/$(lower "$REPO")"
-CNB_IMAGE="${CNB_IMAGE:-docker.cnb.cool/hy-team/ai-baoxiao-reimburse-bot}"
+CNB_IMAGE="${CNB_IMAGE:-docker.cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot}"
 REGISTRY="${REGISTRY:-auto}"          # auto | ghcr | cnb
 IMAGE_BASE="$GHCR_IMAGE"              # 探测后会被改写
 INSTALL_DIR="${INSTALL_DIR:-$HOME/expense-hub}"
@@ -168,6 +168,20 @@ pick_registry() {
     _gh=""; _cn=""
     _gh="$(probe ghcr.io || true)"
     _cn="$(probe "${CNB_IMAGE%%/*}" || true)"
+
+    # CNB 构建机是 x86_64，出的镜像只有 amd64；ghcr 那边是双架构。
+    # ARM 机器（Apple Silicon、arm 服务器）必须走 ghcr，否则拉下来会报
+    # "no matching manifest"——那个错误完全看不出是架构问题
+    case "$(uname -m)" in
+        arm64|aarch64)
+            if [ -n "$_gh" ]; then
+                IMAGE_BASE="$GHCR_IMAGE"; ALT_BASE=""
+                info "本机是 ARM，只有 ghcr 提供 arm64 镜像（${_gh}s）"
+                return
+            fi
+            [ -n "$_cn" ] && warn "本机是 ARM 但 ghcr 不通；CNB 镜像只有 amd64，可能拉不下来"
+            ;;
+    esac
     if [ -n "$_gh" ] && [ -n "$_cn" ]; then
         if faster "$_gh" "$_cn"; then
             IMAGE_BASE="$GHCR_IMAGE"; ALT_BASE="$CNB_IMAGE"

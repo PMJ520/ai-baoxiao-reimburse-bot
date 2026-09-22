@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  CNB_IMAGE: docker.cnb.cool/hy-team/ai-baoxiao-reimburse-bot
+  CNB_IMAGE: docker.cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot
 
 jobs:
   test:
