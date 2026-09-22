@@ -15,9 +15,20 @@
 | GitHub | `github.com/PMJ520/ai-baoxiao-reimburse-bot` | `ghcr.io/pmj520/…` | 海外网络 |
 | CNB | `cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot` | `docker.cnb.cool/hy-team/…` | 国内网络 |
 
-两边内容一致。**镜像源不用你选**——安装脚本会实测两个地址的连通性和延迟，
+两边代码一致。**镜像源不用你选**——安装脚本会实测两个地址的连通性和延迟，
 自动用更快的那个；拉取失败还会自动换另一个源重试。想手动指定用
 `--registry ghcr|cnb`。
+
+镜像架构有差别，脚本会自动处理：
+
+| 源 | 架构 |
+|---|---|
+| ghcr.io | amd64 + arm64 |
+| docker.cnb.cool | 仅 amd64 |
+
+CNB 的构建容器不允许 buildx 所需的特权操作（挂载 sysfs 被拒），跨架构在那边
+构建不出来。所以 **ARM 机器（Apple Silicon、ARM 服务器）会被自动引到 ghcr**，
+不会拉到一半报 "no matching manifest"——那个错误看不出是架构问题。
 
 ## 一键安装
 
