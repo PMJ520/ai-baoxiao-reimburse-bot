@@ -8,9 +8,27 @@
 - **查漏补缺** — 缺发票、缺截图、缺必填信息，主动追问
 - **专用模版** — 通用数据处理 + 专用模版转化，两层分离，可支持多份模版
 
+## 代码与镜像分两处托管
+
+| | 代码 | 镜像 | 适合 |
+|---|---|---|---|
+| GitHub | `github.com/PMJ520/ai-baoxiao-reimburse-bot` | `ghcr.io/pmj520/…` | 海外网络 |
+| CNB | `cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot` | `docker.cnb.cool/hy-team/…` | 国内网络 |
+
+两边内容一致。**镜像源不用你选**——安装脚本会实测两个地址的连通性和延迟，
+自动用更快的那个；拉取失败还会自动换另一个源重试。想手动指定用
+`--registry ghcr|cnb`。
+
 ## 一键安装
 
-**Linux / macOS**
+**国内网络** —— 从 CNB 克隆后安装。源码在本地，不再需要下载任何模板文件：
+
+```bash
+git clone https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot.git
+cd ai-baoxiao-reimburse-bot && ./install.sh --host <你的IP或域名>
+```
+
+**海外网络** —— 一条命令：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.sh | bash
@@ -21,6 +39,10 @@ curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/mai
 ```powershell
 irm https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.ps1 | iex
 ```
+
+> 国内为什么推荐克隆而不是 `curl | bash`：一键脚本还要回源拉 compose 模板，
+> 而 `raw.githubusercontent.com` 在国内时通时不通，卡住的概率不低。
+> 克隆一次把源码都带下来，后续全走本地文件。
 
 带参数安装：
 

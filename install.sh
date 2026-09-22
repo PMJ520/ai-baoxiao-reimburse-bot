@@ -16,7 +16,13 @@ REPO="${REPO:-PMJ520/ai-baoxiao-reimburse-bot}"
 # Docker 仓库名必须全小写，而 GitHub 用户名可以有大写。直接拼出来会得到
 # invalid reference format，且报错里完全看不出是大小写的事
 lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
-IMAGE_BASE="ghcr.io/$(lower "$REPO")"
+
+# 两个镜像源。不按地理位置猜——同一个国内 IP 可能走专线通 GHCR，海外机器
+# 也可能访问 GitHub 受限。直接测哪个通、哪个快，测出来的事实比推断可靠。
+GHCR_IMAGE="ghcr.io/$(lower "$REPO")"
+CNB_IMAGE="${CNB_IMAGE:-docker.cnb.cool/hy-team/ai-baoxiao-reimburse-bot}"
+REGISTRY="${REGISTRY:-auto}"          # auto | ghcr | cnb
+IMAGE_BASE="$GHCR_IMAGE"              # 探测后会被改写
 INSTALL_DIR="${INSTALL_DIR:-$HOME/expense-hub}"
 
 HOST=""; PORT=""; TLS=""; VERSION="latest"; ASSUME_YES=0; DO_BUILD=0
@@ -38,7 +44,9 @@ while [ $# -gt 0 ]; do
         --tls)         TLS="$2"; shift 2 ;;
         --version)     VERSION="$2"; shift 2 ;;
         --dir)         INSTALL_DIR="$2"; shift 2 ;;
-        --repo)        REPO="$2"; IMAGE_BASE="ghcr.io/$(lower "$2")"; shift 2 ;;
+        --repo)        REPO="$2"; GHCR_IMAGE="ghcr.io/$(lower "$2")"; shift 2 ;;
+        --registry)    REGISTRY="$2"; shift 2 ;;
+        --cnb-image)   CNB_IMAGE="$2"; shift 2 ;;
         --llm)         LLM_PROVIDER="$2"; shift 2 ;;
         --llm-key)     LLM_KEY="$2"; shift 2 ;;
         --llm-base-url) LLM_BASE="$2"; shift 2 ;;
@@ -117,6 +125,68 @@ else
     SUDO="sudo"
 fi
 
+PULL_HELP="拉取镜像失败。按以下顺序排查：
+
+  1) 看两个源各自通不通
+     curl -sS -m 6 -o /dev/null -w 'ghcr: %{http_code}\n' https://ghcr.io/v2/
+     curl -sS -m 6 -o /dev/null -w 'cnb:  %{http_code}\n' https://docker.cnb.cool/v2/
+     401 表示通（未带凭证的正常应答），000 表示不通
+
+  2) 指定用哪个源
+     ./install.sh --registry cnb  --host <地址>
+     ./install.sh --registry ghcr --host <地址>
+
+  3) 若 ghcr 报 denied/not found，多半是 GitHub 包默认私有：
+     仓库页 → Packages → 该包 → Package settings → Change visibility → Public
+
+  4) 实在不行本地构建（需要 Docker Hub 与 PyPI 可达）：
+     ./install.sh --build --host <地址>"
+
+# ---------- 连通性探测 ----------
+# 400/401/403 都算通：registry 的 /v2/ 本来就要求鉴权，能答就说明连得上。
+# 只有连不上（超时、重置）才算不通。
+probe() {   # 主机名 → 打印耗时秒数并返回 0；不通返回 1
+    _o="$(curl -sS -m 5 -o /dev/null -w '%{http_code} %{time_total}' \
+          "https://$1/v2/" 2>/dev/null)" || return 1
+    case "${_o%% *}" in 200|401|403|404) printf '%s' "${_o##* }"; return 0 ;; esac
+    return 1
+}
+
+reachable() { curl -sS -m 5 -o /dev/null "https://$1" 2>/dev/null; }
+
+faster() {  # a b → a 更快返回 0
+    awk -v a="$1" -v b="$2" 'BEGIN { exit !(a <= b) }'
+}
+
+pick_registry() {
+    case "$REGISTRY" in
+        ghcr) IMAGE_BASE="$GHCR_IMAGE"; return ;;
+        cnb)  IMAGE_BASE="$CNB_IMAGE";  return ;;
+    esac
+    info "探测镜像源…"
+    _gh=""; _cn=""
+    _gh="$(probe ghcr.io || true)"
+    _cn="$(probe "${CNB_IMAGE%%/*}" || true)"
+    if [ -n "$_gh" ] && [ -n "$_cn" ]; then
+        if faster "$_gh" "$_cn"; then
+            IMAGE_BASE="$GHCR_IMAGE"; ALT_BASE="$CNB_IMAGE"
+            info "两个源都通，选 ghcr.io（${_gh}s，另一个 ${_cn}s）"
+        else
+            IMAGE_BASE="$CNB_IMAGE"; ALT_BASE="$GHCR_IMAGE"
+            info "两个源都通，选 cnb（${_cn}s，另一个 ${_gh}s）"
+        fi
+    elif [ -n "$_cn" ]; then
+        IMAGE_BASE="$CNB_IMAGE"; ALT_BASE=""
+        info "ghcr.io 不通，用 cnb（${_cn}s）"
+    elif [ -n "$_gh" ]; then
+        IMAGE_BASE="$GHCR_IMAGE"; ALT_BASE=""
+        info "cnb 不通，用 ghcr.io（${_gh}s）"
+    else
+        warn "两个镜像源都连不上，仍会尝试拉取"
+        IMAGE_BASE="$GHCR_IMAGE"; ALT_BASE="$CNB_IMAGE"
+    fi
+}
+
 # ---------- Docker 安装 ----------
 # 官方源在部分地区连不上（表现为 curl (35) Connection reset by peer），
 # 一次失败就退出等于把人卡死在第一步。依次降级，全失败才给手动指引。
@@ -178,6 +248,13 @@ docker_apt_repo() {
 }
 
 install_docker() {
+    # 先探一下官方脚本的托管地址通不通。不通就直接跳过，省得 curl 干等
+    # 超时——之前正是在这里白等了几分钟才换下一种
+    if ! reachable get.docker.com; then
+        warn "get.docker.com 不通，跳过官方安装脚本"
+        try_step "Docker 官方 apt 仓库" docker_apt_repo && return 0
+        _skip_script=1
+    fi
     _get="${TMPDIR:-/tmp}/get-docker.$$.sh"
     if get_docker_sh "$_get"; then
         try_step "官方安装脚本" sh "$_get" && { rm -f "$_get"; return 0; }
@@ -286,6 +363,8 @@ fi
 API_TOKEN="$(rand 32)"
 [ -z "$ADMIN_PASS" ] && ADMIN_PASS="${OLD_PASS:-$(rand 18)}"
 
+ALT_BASE=""
+[ "$DO_BUILD" = 1 ] || pick_registry
 IMAGE="${IMAGE_BASE}:${VERSION}"
 [ "$DO_BUILD" = 1 ] && IMAGE="expense-hub:local"
 
@@ -359,16 +438,16 @@ else
     # 不要 2>/dev/null：进度和错误一起被吞掉，用户对着静止的屏幕等几分钟，
     # 跟死机没区别，也不知道是网络问题还是卡住了
     if ! docker compose pull; then
-        die "拉取镜像失败。常见原因与对策：
-
-  1) ghcr.io 不通（国内服务器常见）。先确认：
-     curl -sS -m 6 -o /dev/null -w '%{http_code}\n' https://ghcr.io/v2/
-
-  2) 改为本地构建（需要源码与 PyPI 可达）：
-     git clone https://github.com/$REPO.git
-     cd ai-baoxiao-reimburse-bot && ./install.sh --build --host $HOST
-
-  3) 若为私有仓库，先 docker login ghcr.io"
+        # 探测通不等于拉得下来：镜像可能不存在或是私有的。换另一个源再试
+        if [ -n "$ALT_BASE" ]; then
+            warn "从 $IMAGE_BASE 拉取失败，改用 $ALT_BASE"
+            IMAGE_BASE="$ALT_BASE"; ALT_BASE=""
+            IMAGE="${IMAGE_BASE}:${VERSION}"
+            sed -i.bak "s|^IMAGE=.*|IMAGE=$IMAGE|" .env && rm -f .env.bak
+            docker compose pull || die "$PULL_HELP"
+        else
+            die "$PULL_HELP"
+        fi
     fi
 fi
 
