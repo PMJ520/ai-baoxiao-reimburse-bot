@@ -13,7 +13,10 @@ set -euo pipefail
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo /nonexistent)"
 
 REPO="${REPO:-PMJ520/ai-baoxiao-reimburse-bot}"
-IMAGE_BASE="ghcr.io/${REPO}"
+# Docker 仓库名必须全小写，而 GitHub 用户名可以有大写。直接拼出来会得到
+# invalid reference format，且报错里完全看不出是大小写的事
+lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
+IMAGE_BASE="ghcr.io/$(lower "$REPO")"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/expense-hub}"
 
 HOST=""; PORT=""; TLS=""; VERSION="latest"; ASSUME_YES=0; DO_BUILD=0
@@ -35,7 +38,7 @@ while [ $# -gt 0 ]; do
         --tls)         TLS="$2"; shift 2 ;;
         --version)     VERSION="$2"; shift 2 ;;
         --dir)         INSTALL_DIR="$2"; shift 2 ;;
-        --repo)        REPO="$2"; IMAGE_BASE="ghcr.io/$2"; shift 2 ;;
+        --repo)        REPO="$2"; IMAGE_BASE="ghcr.io/$(lower "$2")"; shift 2 ;;
         --llm)         LLM_PROVIDER="$2"; shift 2 ;;
         --llm-key)     LLM_KEY="$2"; shift 2 ;;
         --llm-base-url) LLM_BASE="$2"; shift 2 ;;
@@ -152,6 +155,28 @@ get_docker_sh() {
     curl -fsSL https://get.docker.com -o "$1"
 }
 
+# get.docker.com 被拦、download.docker.com 却通，是很常见的组合：
+# 前者只是安装脚本的托管地址，后者才是真正的软件仓库。
+# 写成函数而不是 sh -c "..."：多层引号嵌套时 $(...) 到底由哪层展开
+# 极易搞错，而且错了不报错，只是把仓库地址写成一串字面量。
+docker_apt_repo() {
+    command -v curl >/dev/null 2>&1 || return 1
+    _distro="$(. /etc/os-release && echo "${ID:-ubuntu}")"
+    _codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+    [ -n "$_codename" ] || return 1
+    case "$_distro" in ubuntu|debian) ;; *) return 1 ;; esac
+
+    $SUDO install -m 0755 -d /etc/apt/keyrings || return 1
+    curl -fsSL "https://download.docker.com/linux/$_distro/gpg" -o /tmp/docker.asc || return 1
+    $SUDO mv /tmp/docker.asc /etc/apt/keyrings/docker.asc || return 1
+    $SUDO chmod a+r /etc/apt/keyrings/docker.asc
+    printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' \
+        "$(dpkg --print-architecture)" "$_distro" "$_codename" \
+        | $SUDO tee /etc/apt/sources.list.d/docker.list >/dev/null || return 1
+    $SUDO apt-get update -qq || return 1
+    $SUDO apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+}
+
 install_docker() {
     _get="${TMPDIR:-/tmp}/get-docker.$$.sh"
     if get_docker_sh "$_get"; then
@@ -162,6 +187,7 @@ install_docker() {
         warn "下载官方安装脚本失败（网络不通），改用系统自带的包"
     fi
     rm -f "$_get"
+    try_step "Docker 官方 apt 仓库" docker_apt_repo && return 0
     if command -v apt-get >/dev/null 2>&1; then
         try_step "apt 安装 docker.io" sh -c \
             "$SUDO apt-get update && $SUDO apt-get install -y docker.io docker-compose-v2" \
@@ -284,9 +310,30 @@ chmod 600 .env
 info "配置已写入 $INSTALL_DIR/.env"
 
 # ---------- 4. 生成 compose 与 Caddyfile ----------
+# 从仓库取单个文件。raw.githubusercontent.com 在部分网络下时通时不通
+# （实测同一台机器上一次成功、下一次 000），只认这一个源必然坑人，
+# 所以挨个试。jsDelivr 取的是同一份文件，字节数一致。
+FILE_SOURCES="
+https://raw.githubusercontent.com/%s/main/%s
+https://cdn.jsdelivr.net/gh/%s@main/%s
+https://gitee.com/%s/raw/main/%s
+"
+
 fetch() {   # 优先用本地模板（源码安装），否则从仓库拉
-    if [ -f "$SRC_DIR/$1" ]; then cp "$SRC_DIR/$1" "$2"
-    else curl -fsSL "https://raw.githubusercontent.com/$REPO/main/$1" -o "$2"; fi
+    if [ -f "$SRC_DIR/$1" ]; then cp "$SRC_DIR/$1" "$2"; return 0; fi
+    _tried=0
+    for _tpl in $FILE_SOURCES; do
+        case "$_tpl" in *gitee*) continue;; esac   # 仅当镜像仓库存在时才有用
+        _url="$(printf "$_tpl" "$REPO" "$1" "$REPO" "$1")"
+        _tried=$((_tried + 1))
+        if curl -fsSL -m 30 "$_url" -o "$2" 2>/dev/null && [ -s "$2" ]; then
+            [ "$_tried" -gt 1 ] && info "（经备用源取得 $1）"
+            return 0
+        fi
+    done
+    die "下载 $1 失败，已尝试 $_tried 个源。
+       请检查网络，或改用源码安装：
+         git clone https://github.com/$REPO.git && cd ai-baoxiao-reimburse-bot && ./install.sh"
 }
 
 if [ "$MODE" = "direct" ]; then
@@ -308,7 +355,21 @@ if [ "$DO_BUILD" = 1 ]; then
     docker build -t expense-hub:local "$SRC_DIR" || die "镜像构建失败"
 else
     info "拉取镜像 $IMAGE …"
-    docker compose pull 2>/dev/null || warn "拉取失败，若为私有仓库请先 docker login ghcr.io"
+    info "（首次拉取约几百 MB，慢的话是正常的；下面会显示进度）"
+    # 不要 2>/dev/null：进度和错误一起被吞掉，用户对着静止的屏幕等几分钟，
+    # 跟死机没区别，也不知道是网络问题还是卡住了
+    if ! docker compose pull; then
+        die "拉取镜像失败。常见原因与对策：
+
+  1) ghcr.io 不通（国内服务器常见）。先确认：
+     curl -sS -m 6 -o /dev/null -w '%{http_code}\n' https://ghcr.io/v2/
+
+  2) 改为本地构建（需要源码与 PyPI 可达）：
+     git clone https://github.com/$REPO.git
+     cd ai-baoxiao-reimburse-bot && ./install.sh --build --host $HOST
+
+  3) 若为私有仓库，先 docker login ghcr.io"
+    fi
 fi
 
 fetch expense-hub expense-hub 2>/dev/null || true
@@ -316,7 +377,7 @@ fetch expense-hub expense-hub 2>/dev/null || true
 docker compose up -d
 
 say ""
-info "等待服务就绪…"
+info "等待服务就绪…（最多 2 分钟）"
 HEALTH_URL="http://127.0.0.1:${PORT:-8000}/health"
 [ "$MODE" = "proxy" ] && HEALTH_URL="http://127.0.0.1/health"
 for i in $(seq 1 40); do
