@@ -398,6 +398,11 @@ def template_activate(request: Request, template_id: int):
 # OpenAI 兼容端点覆盖面最广（通义、DeepSeek、智谱、Moonshot 等），放首位作默认
 # 开源仓库地址，安装命令里要用；部署时可用环境变量覆盖成自己的 fork
 REPO = os.environ.get("EH_REPO", "PMJ520/ai-baoxiao-reimburse-bot")
+# CNB 的 raw 路径是 /-/git/raw/，不是 /-/raw/——后者返回的是网页外壳，
+# 拿到的是一整页 HTML 而不是脚本，且 HTTP 状态是 200，很难察觉
+CNB_RAW = os.environ.get(
+    "EH_CNB_RAW",
+    "https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main")
 
 
 def host_hint():
@@ -508,7 +513,7 @@ def settings_page(request: Request, msg: str = "", ok: int = 0):
                  llm_key_mask=ST.masked(llm["api_key"]),
                  providers=PROVIDERS, msg=msg, ok=bool(ok),
                  host_hint=host_hint(), worker=QUEUE.state(),
-                 repo=REPO,
+                 repo=REPO, cnb_raw=CNB_RAW,
                  # 安装命令要能直接复制，令牌必须原样给出。页面本就在登录态
                  # 之后，且这个令牌只在本后台与 worker 之间有意义
                  llm_token=(llm["api_key"] if llm["provider"] in ("cli", "cli_bridge") else ""))

@@ -21,14 +21,13 @@
 
 ## 一键安装
 
-**国内网络** —— 从 CNB 克隆后安装。源码在本地，不再需要下载任何模板文件：
+**国内网络**
 
 ```bash
-git clone https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot.git
-cd ai-baoxiao-reimburse-bot && ./install.sh --host <你的IP或域名>
+curl -fsSL https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main/install.sh | bash
 ```
 
-**海外网络** —— 一条命令：
+**海外网络**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.sh | bash
@@ -37,11 +36,21 @@ curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/mai
 **Windows（PowerShell）**
 
 ```powershell
+# 国内
+irm https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main/install.ps1 | iex
+# 海外
 irm https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.ps1 | iex
 ```
 
-> 国内为什么推荐克隆而不是 `curl | bash`：一键脚本还要回源拉 compose 模板，
-> 而 `raw.githubusercontent.com` 在国内时通时不通，卡住的概率不低。
+脚本自己会按顺序尝试 CNB、GitHub、jsDelivr 三个源取模板，哪个通用哪个，
+所以两条命令其实都能用，上面只是按常见情况给了首选。
+
+实在拉不到脚本时（公司网络限制等），克隆下来跑也一样：
+
+```bash
+git clone https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot.git
+cd ai-baoxiao-reimburse-bot && ./install.sh --host <你的IP或域名>
+```
 > 克隆一次把源码都带下来，后续全走本地文件。
 
 带参数安装：

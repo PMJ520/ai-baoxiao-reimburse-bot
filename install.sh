@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 费用报销中枢 · 一键安装（macOS / Linux / WSL2）
 #
-#   curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.sh | bash
+#   国内：curl -fsSL https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main/install.sh | bash
+#   海外：curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.sh | bash
 #   curl -fsSL ... | bash -s -- --host 192.168.1.100 --port 8000
 #   curl -fsSL ... | bash -s -- --host hub.example.com --llm claude --llm-key sk-xxx
 #
@@ -392,20 +393,29 @@ info "配置已写入 $INSTALL_DIR/.env"
 # 从仓库取单个文件。raw.githubusercontent.com 在部分网络下时通时不通
 # （实测同一台机器上一次成功、下一次 000），只认这一个源必然坑人，
 # 所以挨个试。jsDelivr 取的是同一份文件，字节数一致。
+# 注意 CNB 的 raw 路径是 /-/git/raw/，不是 /-/raw/——后者返回网页外壳
+# （200 + text/html），curl 拿到的是一整页 HTML 而不是文件，很难察觉
+CNB_RAW="${CNB_RAW:-https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main}"
 FILE_SOURCES="
+$CNB_RAW/%s
 https://raw.githubusercontent.com/%s/main/%s
 https://cdn.jsdelivr.net/gh/%s@main/%s
-https://gitee.com/%s/raw/main/%s
 "
 
 fetch() {   # 优先用本地模板（源码安装），否则从仓库拉
     if [ -f "$SRC_DIR/$1" ]; then cp "$SRC_DIR/$1" "$2"; return 0; fi
     _tried=0
     for _tpl in $FILE_SOURCES; do
-        case "$_tpl" in *gitee*) continue;; esac   # 仅当镜像仓库存在时才有用
-        _url="$(printf "$_tpl" "$REPO" "$1" "$REPO" "$1")"
+        case "$_tpl" in
+            *cnb.cool*)   _url="$(printf '%s' "$_tpl" | sed "s|%s|$1|")" ;;
+            *jsdelivr*)   _url="https://cdn.jsdelivr.net/gh/$(lower "$REPO")@main/$1" ;;
+            *)            _url="https://raw.githubusercontent.com/$REPO/main/$1" ;;
+        esac
         _tried=$((_tried + 1))
-        if curl -fsSL -m 30 "$_url" -o "$2" 2>/dev/null && [ -s "$2" ]; then
+        # 只认真正的文件：CNB 用错路径会返回 200 + 一整页 HTML，
+        # 光看退出码和文件非空是分辨不出来的
+        if curl -fsSL -m 30 "$_url" -o "$2" 2>/dev/null && [ -s "$2" ] \
+           && ! head -c 200 "$2" | grep -qi '<!DOCTYPE html\|<html'; then
             [ "$_tried" -gt 1 ] && info "（经备用源取得 $1）"
             return 0
         fi

@@ -287,7 +287,10 @@ document.querySelectorAll('dialog.editor').forEach(function (d) {
     // 保存完一刷新就拿不到令牌了，命令等于废的
     var token = keyInput.value || {{ llm_token | tojson }} || '<先在上面生成桥接令牌>';
     var repo = {{ repo | tojson }};
-    var raw = 'https://raw.githubusercontent.com/' + repo + '/main/bridge/';
+    // 国内拉 raw.githubusercontent.com 经常不通，默认给 CNB 地址；
+    // 注意 CNB 的 raw 路径是 /-/git/raw/，/-/raw/ 会返回网页外壳
+    var raw = {{ cnb_raw | tojson }} + '/bridge/';
+    var rawAlt = 'https://raw.githubusercontent.com/' + repo + '/main/bridge/';
 
     document.getElementById('cmd-macos').textContent =
       'curl -fsSL ' + raw + 'setup.sh | bash -s -- \\\n' +
@@ -302,6 +305,11 @@ document.querySelectorAll('dialog.editor').forEach(function (d) {
       '# 任意能访问本后台、装了 CLI 的机器上：\n' +
       'curl -fsSL ' + raw + 'worker.sh -o worker.sh\n' +
       'sh worker.sh --url ' + origin + ' --token ' + token + ' --cli claude';
+
+    ['macos', 'linux'].forEach(function (os) {
+      var el = document.getElementById('alt-' + os);
+      if (el) el.textContent = rawAlt + 'setup.sh';
+    });
 
     var tabs = document.querySelectorAll('#os-tabs button');
     for (var i = 0; i < tabs.length; i++) {

@@ -1,6 +1,7 @@
 # 费用报销中枢 · 一键安装（Windows）
 #
-#   irm https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.ps1 | iex
+#   国内：irm https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main/install.ps1 | iex
+#   海外：irm https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.ps1 | iex
 #   & ([scriptblock]::Create((irm ...))) -Host 192.168.1.100 -Port 8000
 #
 # 可重复运行：已完成的步骤会跳过，装完 Docker 重启后重跑即可接上。
@@ -142,9 +143,29 @@ $vars | ConvertTo-Json | Set-Content "$Dir\creds.json" -Encoding UTF8
 Info "配置已写入用户环境变量（备份于 $Dir\creds.json）"
 
 # ---------- 4. compose 与 Caddyfile ----------
+# 三个源依次试。raw.githubusercontent.com 在国内时通时不通，只认它必然坑人。
+# CNB 的 raw 路径是 /-/git/raw/，写成 /-/raw/ 会返回网页外壳——HTTP 200、
+# 内容却是一整页 HTML，光看有没有报错分辨不出来，所以下面要查内容。
+$CnbRaw = 'https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main'
+
 function Fetch($rel, $dest) {
-    if ($SrcDir -and (Test-Path "$SrcDir\$rel")) { WriteLF $dest (Get-Content "$SrcDir\$rel" -Raw) }
-    else { WriteLF $dest (Invoke-RestMethod "https://raw.githubusercontent.com/$Repo/main/$rel") }
+    if ($SrcDir -and (Test-Path "$SrcDir\$rel")) {
+        WriteLF $dest (Get-Content "$SrcDir\$rel" -Raw); return
+    }
+    $urls = @(
+        "$CnbRaw/$rel",
+        "https://raw.githubusercontent.com/$Repo/main/$rel",
+        "https://cdn.jsdelivr.net/gh/$($Repo.ToLower())@main/$rel"
+    )
+    foreach ($u in $urls) {
+        try {
+            $body = Invoke-RestMethod $u -TimeoutSec 30
+            if ($body -is [string] -and $body -match '(?i)^\s*<(!DOCTYPE|html)') { continue }
+            WriteLF $dest $body
+            return
+        } catch { }
+    }
+    throw "下载 $rel 失败，已尝试 $($urls.Count) 个源。请检查网络，或克隆仓库后本地安装。"
 }
 if ($Mode -eq 'direct') {
     Fetch "templates/docker-compose.direct.yml" "$Dir\docker-compose.yml"
