@@ -261,7 +261,7 @@ document.querySelectorAll('dialog.editor').forEach(function (d) {
   d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
 });
 </script>
-<script src="/admin/static/settings.js"></script>
+<script src="/admin/static/settings.js?v={{ asset_v }}"></script>
 <script>
 // 选本机 CLI 时这张表的含义整个变了：不再填 API Key 和 Base URL，
 // 而是给 worker 一个鉴权令牌。标签不跟着改，使用者一定会填错。

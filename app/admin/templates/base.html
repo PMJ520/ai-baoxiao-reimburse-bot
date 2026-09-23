@@ -4,7 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}费用报销中枢{% endblock %}</title>
-<link rel="stylesheet" href="/admin/static/app.css">
+<script>
+// 必须在样式之前同步执行：等页面渲染完再切主题会闪一下白底，
+// 深色模式下尤其刺眼
+(function () {
+  try {
+    var t = localStorage.getItem('eh-theme');
+    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { }
+})();
+</script>
+<link rel="stylesheet" href="/admin/static/tokens.css?v={{ asset_v }}">
+<link rel="stylesheet" href="/admin/static/app.css?v={{ asset_v }}">
 </head>
 <body class="app">
 <aside class="side">
@@ -19,9 +31,30 @@
   </nav>
   <div class="side-foot">
     <span class="who">{{ me or 'admin' }}</span>
+    <button type="button" id="theme-btn" class="icon-btn" title="切换深浅色"></button>
     <a href="/admin/logout">退出</a>
   </div>
 </aside>
 <main>{% block body %}{% endblock %}</main>
+<script>
+// 默认跟随系统，手动切过就记住；没手动选过时系统改了要跟着变
+(function () {
+  var root = document.documentElement, btn = document.getElementById('theme-btn');
+  var mq = matchMedia('(prefers-color-scheme: dark)');
+  function paint() { btn.textContent = root.getAttribute('data-theme') === 'dark' ? '☀' : '☾'; }
+  btn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('eh-theme', next); } catch (e) { }
+    paint();
+  });
+  mq.addEventListener('change', function (e) {
+    try { if (localStorage.getItem('eh-theme')) return; } catch (err) { }
+    root.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+    paint();
+  });
+  paint();
+})();
+</script>
 </body>
 </html>

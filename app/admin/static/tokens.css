@@ -1,0 +1,159 @@
+/* Blog Design System — Design Tokens
+   Version: 1.0
+   Purpose: Reusable visual language for personal blogs, portfolios, and lightweight product pages.
+*/
+
+:root {
+  /* Color — Light */
+  --color-bg: #F7F7F8;
+  --color-surface: #FFFFFF;
+  --color-surface-soft: #F1F3F5;
+  --color-text: #1F2937;
+  --color-text-muted: #6B7280;
+  --color-border: #E5E7EB;
+  --color-accent: #111827;
+  --color-accent-contrast: #FFFFFF;
+
+  /* Decorative soft tones */
+  --color-soft-blue: #DBEAFE;
+  --color-soft-violet: #DDD6FE;
+  --color-soft-gray: #F3F4F6;
+
+  /* 状态色（本项目补充）。规范只定义了中性色与装饰色，但后台要表达
+     成功/警告/失败。按"彩色不承担信息层级、保持低饱和"的原则选色：
+     明度接近正文色，饱和度压到能区分即可，不抢内容。 */
+  --color-ok: #15803D;
+  --color-ok-soft: #ECFDF3;
+  --color-warn: #B45309;
+  --color-warn-soft: #FFFBEB;
+  --color-bad: #B91C1C;
+  --color-bad-soft: #FEF2F2;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Radius */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-18: 72px;
+  --space-24: 96px;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 28px;
+  --font-size-hero: clamp(42px, 7vw, 80px);
+
+  --line-height-tight: 1.1;
+  --line-height-normal: 1.7;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* Border */
+  --border-width: 1px;
+
+  /* Shadow */
+  --shadow-card: 0 14px 40px rgba(0, 0, 0, 0.07);
+  --shadow-hero: 0 20px 60px rgba(0, 0, 0, 0.08);
+
+  /* Motion */
+  --duration-fast: 160ms;
+  --duration-base: 220ms;
+  --ease-standard: cubic-bezier(.2,.7,.2,1);
+
+  /* Layout */
+  --container-max: 1100px;
+  --page-gutter: 20px;
+  --card-padding: 22px;
+  --section-gap: 70px;
+}
+
+[data-theme="dark"],
+.dark {
+  --color-bg: #111827;
+  --color-surface: #1F2937;
+  --color-surface-soft: #182233;
+  --color-text: #F9FAFB;
+  --color-text-muted: #9CA3AF;
+  --color-border: #374151;
+  --color-accent: #F9FAFB;
+  --color-accent-contrast: #111827;
+
+  --color-soft-blue: #1E3A5F;
+  --color-soft-violet: #3B2F59;
+  --color-soft-gray: #273244;
+
+  /* 深色下不是简单反色：文字色提亮以保证对比度，底色压暗到贴近卡片面，
+     维持与浅色相同的层级关系 */
+  --color-ok: #4ADE80;
+  --color-ok-soft: #14301F;
+  --color-warn: #FBBF24;
+  --color-warn-soft: #332611;
+  --color-bad: #F87171;
+  --color-bad-soft: #3B1A1A;
+
+  --shadow-card: 0 14px 40px rgba(0, 0, 0, 0.24);
+  --shadow-hero: 0 20px 60px rgba(0, 0, 0, 0.28);
+}
+
+/* Recommended primitives */
+.ds-container {
+  width: min(var(--container-max), calc(100% - (var(--page-gutter) * 2)));
+  margin-inline: auto;
+}
+
+.ds-card {
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--card-padding);
+  transition:
+    transform var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+
+.ds-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card);
+}
+
+.ds-button {
+  min-height: 44px;
+  padding-inline: 18px;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+}
+
+.ds-button--primary {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-color: var(--color-accent);
+}

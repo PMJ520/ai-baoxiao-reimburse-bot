@@ -2,12 +2,35 @@
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>登录 · 费用报销中枢</title>
-<link rel="stylesheet" href="/admin/static/app.css"></head>
-<body><div class="login-wrap"><form class="login" method="post" action="/admin/login">
-  <h1>费用报销中枢</h1>
-  {% if error %}<div class="err">{{ error }}</div>{% endif %}
-  <label>用户名</label><input name="user" autofocus autocomplete="username">
-  <label>密码</label><input name="password" type="password" autocomplete="current-password">
-  <button class="primary" type="submit">登录</button>
-  <p class="hint" style="margin-top:14px">凭据见安装时的输出，或运行 ./expense-hub info</p>
-</form></div></body></html>
+<script>
+// 与后台一致：先定主题再渲染，避免深色模式下闪一下白底
+(function () {
+  try {
+    var t = localStorage.getItem('eh-theme');
+    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { }
+})();
+</script>
+<link rel="stylesheet" href="/admin/static/tokens.css?v={{ asset_v }}">
+<link rel="stylesheet" href="/admin/static/app.css?v={{ asset_v }}"></head>
+<body class="login">
+<div class="panel">
+  <form method="post" action="/admin/login" style="padding:var(--space-6)">
+    <h1 style="font-size:var(--font-size-xl);margin-bottom:var(--space-5)">费用报销中枢</h1>
+    {% if error %}<div class="err" style="background:var(--color-bad-soft);
+      color:var(--color-bad)">{{ error }}</div>{% endif %}
+    <div class="form-rows">
+      <div class="fr"><label>用户名</label>
+        <input name="user" autofocus autocomplete="username"></div>
+      <div class="fr"><label>密码</label>
+        <input name="password" type="password" autocomplete="current-password"></div>
+    </div>
+    <div class="form-actions">
+      <button class="primary" type="submit" style="width:100%">登录</button>
+    </div>
+    <p class="hint" style="margin-top:var(--space-4)">
+      凭据见安装时的输出，或运行 ./expense-hub info</p>
+  </form>
+</div>
+</body></html>

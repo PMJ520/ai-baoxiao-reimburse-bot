@@ -52,7 +52,21 @@ def preview_kind(name):
     return "image" if ext in IMG_EXT else ("pdf" if ext == ".pdf" else "")
 
 
+# 静态资源版本号：取静态目录里最新的修改时间。
+# 没有它的话，升级后浏览器会拿旧的 app.css 配新的 tokens.css，
+# 渲染出一个四不像的页面——而用户不会想到要强制刷新。
+def _asset_version():
+    d = Path(__file__).parent / "static"
+    try:
+        return str(int(max(f.stat().st_mtime for f in d.iterdir() if f.is_file())))
+    except (OSError, ValueError):
+        return "0"
+
+
+ASSET_V = _asset_version()
+
 tpl.env.globals.update(
+    asset_v=ASSET_V,
     preview_kind=preview_kind,
     kind_name=lambda k: _KIND.get(k, k),
     status_tag=lambda s: _tag(_TAGCLS.get(s, "mute"), _STATUS.get(s, s)),
