@@ -12,7 +12,10 @@
   <div class="stat"><div class="n">{{ s.batches }}</div><div class="k">批次</div></div>
 </div>
 <div class="panel">
-  <div class="hd">最近入库 <span class="muted">最新 12 条</span>
+  {# 原来写死"最新 12 条"，它描述的是上限，可空库时读起来像"有 12 条"，
+     和表格里那句"还没有任何材料"自相矛盾 #}
+  <div class="hd">最近入库
+    <span class="muted">{% if recent %}最新 {{ recent|length }} 条{% else %}暂无{% endif %}</span>
     <form class="filters"><a href="/admin/documents">查看全部 →</a></form></div>
   <table><thead><tr>
     <th>消费时间</th><th class="num">金额</th><th>类型</th><th>商户</th>
