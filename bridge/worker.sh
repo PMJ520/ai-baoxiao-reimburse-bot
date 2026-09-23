@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# 费用报销中枢 —— 宿主机 worker（POSIX sh，busybox 也能跑）
+# 费用报销中台 —— 宿主机 worker（POSIX sh，busybox 也能跑）
 #
 # 循环：长轮询要活 → 调本机 CLI → 把输出原样送回。
 # 只依赖 curl 和你那个 CLI 本身，不需要 python / node / jq。

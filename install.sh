@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 费用报销中枢 · 一键安装（macOS / Linux / WSL2）
+# 费用报销中台 · 一键安装（macOS / Linux / WSL2）
 #
 #   国内：curl -fsSL https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main/install.sh | bash
 #   海外：curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.sh | bash
@@ -115,7 +115,7 @@ is_ip_or_local() {
 }
 
 say "════════════════════════════════════════════"
-say "   费用报销中枢 · 安装"
+say "   费用报销中台 · 安装"
 say "════════════════════════════════════════════"
 
 # root 下不需要 sudo，精简镜像里也往往没装。留空即可，别让缺 sudo

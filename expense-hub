@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 费用报销中枢 · 管理脚本
+# 费用报销中台 · 管理脚本
 #   ./expense-hub start|stop|restart|status|logs|info|update|backup|uninstall
 set -euo pipefail
 cd "$(dirname "$0")"

@@ -1,4 +1,4 @@
-# 费用报销中枢 · 管理脚本（Windows）
+# 费用报销中台 · 管理脚本（Windows）
 #   .\expense-hub.ps1 start|stop|restart|status|logs|info|update|backup|uninstall
 param([Parameter(Position = 0)][string]$Cmd = "")
 $ErrorActionPreference = 'Stop'

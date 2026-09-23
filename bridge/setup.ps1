@@ -1,4 +1,4 @@
-# 费用报销中枢 —— 宿主机 worker 一键安装（Windows）
+# 费用报销中台 —— 宿主机 worker 一键安装（Windows）
 #
 #   irm https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/bridge/setup.ps1 -OutFile setup.ps1
 #   .\setup.ps1 -Url http://localhost:8080 -Token XXXX
@@ -22,7 +22,7 @@ function Warn($m) { Write-Host "  [!] $m" -ForegroundColor Yellow }
 function Die($m)  { Write-Host "`n[X] $m" -ForegroundColor Red; exit 1 }
 
 Write-Host ''
-Write-Host '费用报销中枢 · 宿主机 worker 安装'
+Write-Host '费用报销中台 · 宿主机 worker 安装'
 Write-Host '────────────────────────────────'
 
 # ---- 1. 环境检查 ----

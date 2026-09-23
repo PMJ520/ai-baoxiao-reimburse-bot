@@ -1,4 +1,4 @@
-# 费用报销中枢 · 一键安装（Windows）
+# 费用报销中台 · 一键安装（Windows）
 #
 #   国内：irm https://cnb.cool/hy-team/mj-public/ai-baoxiao-reimburse-bot/-/git/raw/main/install.ps1 | iex
 #   海外：irm https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/install.ps1 | iex
@@ -41,7 +41,7 @@ function WriteLF($path, $text) {
 }
 
 Write-Host "════════════════════════════════════════════"
-Write-Host "   费用报销中枢 · 安装"
+Write-Host "   费用报销中台 · 安装"
 Write-Host "════════════════════════════════════════════"
 Info "系统 Windows $([Environment]::OSVersion.Version) / $env:PROCESSOR_ARCHITECTURE"
 

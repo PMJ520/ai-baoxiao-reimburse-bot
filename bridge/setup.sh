@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 费用报销中枢 —— 宿主机 worker 一键安装（macOS / Linux）
+# 费用报销中台 —— 宿主机 worker 一键安装（macOS / Linux）
 #
 #   curl -fsSL https://raw.githubusercontent.com/PMJ520/ai-baoxiao-reimburse-bot/main/bridge/setup.sh \
 #     | bash -s -- --url http://localhost:8080 --token XXXX
@@ -31,7 +31,7 @@ done
 URL="${URL%/}"
 
 say ""
-say "费用报销中枢 · 宿主机 worker 安装"
+say "费用报销中台 · 宿主机 worker 安装"
 say "────────────────────────────────"
 
 # ---- 1. 环境检查 ----

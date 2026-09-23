@@ -1,4 +1,4 @@
-# 费用报销中枢 —— 宿主机 worker（Windows PowerShell 5.1+，系统自带）
+# 费用报销中台 —— 宿主机 worker（Windows PowerShell 5.1+，系统自带）
 #
 #   .\worker.ps1 -Url http://localhost:8080 -Token XXXX [-Cli claude]
 #
