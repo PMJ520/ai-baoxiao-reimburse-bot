@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>登录 · 费用报销中枢</title>
+<title>登录 · 费用报销中台</title>
 <script>
 // 与后台一致：先定主题再渲染，避免深色模式下闪一下白底
 (function () {
@@ -17,7 +17,7 @@
 <body class="login">
 <div class="panel">
   <form method="post" action="/admin/login" style="padding:var(--space-6)">
-    <h1 style="font-size:var(--font-size-xl);margin-bottom:var(--space-5)">费用报销中枢</h1>
+    <h1 style="font-size:var(--font-size-xl);margin-bottom:var(--space-5)">费用报销中台</h1>
     {% if error %}<div class="err" style="background:var(--color-bad-soft);
       color:var(--color-bad)">{{ error }}</div>{% endif %}
     <div class="form-rows">

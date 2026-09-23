@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("expense-hub")
 
-app = FastAPI(title="费用报销中枢", version="0.1.0")
+app = FastAPI(title="费用报销中台", version="0.1.0")
 app.include_router(documents.router)
 app.include_router(batches.router)
 app.include_router(templates.router)
