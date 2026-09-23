@@ -119,10 +119,10 @@
                placeholder="OpenAI 兼容端点，Claude 可留空"></div>
     </div>
     <div class="form-actions">
-      <button class="primary" type="submit">保存</button>
-      {% if llm_state.cls != 'bad' %}
+      {# 按钮不按状态隐藏：未配置时藏起来，用户就得先保存、关掉弹窗、
+         重新点开才看得到测试按钮，白跑一趟 #}
+      <button class="primary" type="submit" id="btn-save">保存</button>
       <button type="button" class="ghost" id="btn-test" style="margin-left:12px">测试连通性</button>
-      {% endif %}
       <span id="test-out" class="test-out"></span>
     </div>
   </form>
@@ -193,7 +193,46 @@
   var btn = document.getElementById('btn-test');
   if (!btn) return;
   var out = document.getElementById('test-out');
+  var form = btn.closest('form');
+  var saved = false;          // 本次打开后有没有保存过
+
+  // 标记表单被改过。必须和 form 在同一作用域，写到别的 IIFE 里
+  // 引用不到这个变量，监听根本装不上
+  form.addEventListener('input', function (e) {
+    e.target.setAttribute('data-touched', '1');
+    saved = false;            // 保存后又改了，得重新保存再测
+  });
+
+  // 保存也不跳转：整页刷新会关掉弹窗，填完想测还得重新点开卡片
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var sv = document.getElementById('btn-save');
+    sv.disabled = true;
+    out.className = 'test-out';
+    out.textContent = '保存中…';
+    var body = new URLSearchParams(new FormData(form));
+    fetch(form.action + '?fmt=json', {
+      method: 'POST', credentials: 'same-origin', body: body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        saved = true;
+        out.className = 'test-out ' + (d.ok ? 'ok' : 'bad');
+        out.textContent = d.msg || '已保存';
+      })
+      .catch(function (e) {
+        out.className = 'test-out bad';
+        out.textContent = '保存失败：' + e;
+      })
+      .finally(function () { sv.disabled = false; });
+  });
   btn.addEventListener('click', function () {
+    // 表单改过却没保存时，测的是库里的旧配置，结果会误导人
+    if (!saved && form.querySelector('[data-touched]')) {
+      out.className = 'test-out bad';
+      out.textContent = '改动还没保存，先点「保存」再测';
+      return;
+    }
     btn.disabled = true;
     out.className = 'test-out';
     out.textContent = '测试中…（本机 CLI 方式需要数秒）';

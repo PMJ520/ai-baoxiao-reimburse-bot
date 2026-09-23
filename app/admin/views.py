@@ -556,7 +556,7 @@ def settings_dingtalk(request: Request, client_id: str = Form(""),
 @router.post("/settings/llm")
 def settings_llm(request: Request, provider: str = Form("claude"),
                  api_key: str = Form(""), base_url: str = Form(""),
-                 model: str = Form("")):
+                 model: str = Form(""), fmt: str = ""):
     if not _guard(request):
         return auth.redirect_login()
     from ..services import settings_store as ST
@@ -567,6 +567,10 @@ def settings_llm(request: Request, provider: str = Form("claude"),
         if api_key.strip():
             ST.put(s, ST.K_LLM_KEY, api_key.strip())
         ST.put(s, "llm_last_check", "")   # 配置变了，旧的连通结论作废
+    # fmt=json 时不跳转：整页刷新会把弹窗关掉，用户填完想测一下还得
+    # 重新点开卡片，来回一趟毫无必要
+    if fmt == "json":
+        return JSONResponse({"ok": True, "msg": "已保存，可以点「测试连通性」了"})
     return RedirectResponse("/admin/settings?msg=已保存模型配置，建议点一次「测试连通性」&ok=1",
                             status_code=302)
 
